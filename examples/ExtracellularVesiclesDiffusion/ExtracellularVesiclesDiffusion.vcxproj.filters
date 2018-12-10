@@ -26,14 +26,14 @@
     <ClInclude Include="src\visualisation\visualisation.h">
       <Filter>visualisation</Filter>
     </ClInclude>
-    <ClInclude Include="src\visualisation\myVisualisation.h">
-      <Filter>visualisation</Filter>
-    </ClInclude>
     <ClInclude Include="src\model\textureAccess.h">
       <Filter>model</Filter>
     </ClInclude>
     <ClInclude Include="src\model\cuda_helper.h">
       <Filter>model</Filter>
+    </ClInclude>
+    <ClInclude Include="src\visualisation\myVisualisation.h">
+      <Filter>visualisation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

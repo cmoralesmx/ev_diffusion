@@ -23,8 +23,10 @@
 #include <cmath>
 
 #include <GL/glew.h>
-#include <GL/glut.h>
+//#include <GL/glut.h>
+#include <GL/freeglut.h>
 #include <cuda_gl_interop.h>
+
 #include "header.h"
 #include "visualisation.h"
 #define __MYVISUAL
@@ -42,11 +44,15 @@ GLuint wallVerts;
 GLuint wallNormals;
 
 //Simulation output buffers/textures
-
+cudaGraphicsResource_t EV_default_cgr;
 GLuint EV_default_tbo;
 GLuint EV_default_displacementTex;
+
+cudaGraphicsResource_t CiliaryCell_c_default_cgr;
 GLuint CiliaryCell_default_tbo;
 GLuint CiliaryCell_default_displacementTex;
+
+cudaGraphicsResource_t SecretoryCell_s_default_cgr;
 GLuint SecretoryCell_default_tbo;
 GLuint SecretoryCell_default_displacementTex;
 
@@ -72,6 +78,7 @@ GLuint fragmentShader;
 GLuint shaderProgram;
 //GLuint vs_displacementMap;
 GLuint vs_mapIndex;
+
 GLuint walls_vertexShader;
 GLuint walls_fragmentShader;
 GLuint walls_shaderProgram;
@@ -94,11 +101,14 @@ int initGL();
 void initShader();
 void createVBO(GLuint* vbo, GLuint size);
 void deleteVBO(GLuint* vbo);
-void createTBO(GLuint* tbo, GLuint* tex, GLuint size);
-void deleteTBO(GLuint* tbo);
+//void createTBO(GLuint* tbo, GLuint* tex, GLuint size);
+//void deleteTBO(GLuint* tbo);
+void createTBO(cudaGraphicsResource_t* cudaResource, GLuint* tbo, GLuint* tex, GLuint size);
+void deleteTBO(cudaGraphicsResource_t* cudaResource, GLuint* tbo);
 void setVertexBufferData();
 void reshape(int width, int height);
 void display();
+void close();
 void keyboard(unsigned char key, int x, int y);
 void special(int key, int x, int y);
 void mouse(int button, int state, int x, int y);
@@ -162,17 +172,17 @@ const char vertexShaderSource[] =
 	"{																			\n"
 	"	vec4 position = gl_Vertex;											    \n"
 	"	vec4 lookup = texelFetchBuffer(displacementMap, (int)mapIndex);		    \n"
-	"	if (lookup.w > 7.3)	                									\n"
+	"	if (lookup.w > 0.0664)	                									\n"
 	"		colour = vec4(0., 0.59, 0.53, 1.0);						    		\n" // teal (0,150,133)
-	"	else if (lookup.w >= 6)	               								\n"
+	"	else if (lookup.w > 0.0579)	               								\n"
 	"		colour = vec4(0.9, 0.12, 0.39, 1.0);							    \n" // pink (229,30,99)
-	"	else if (lookup.w > 4.6)	                							\n"
+	"	else if (lookup.w > 0.0493)	                							\n"
 	"		colour = vec4(0.61, 0.15, 0.69, 1.0);							    \n" // purple (155,38,175)
-	"	else if (lookup.w > 3.3)	                							\n"
+	"	else if (lookup.w > 0.0407)	                							\n"
 	"		colour = vec4(0.1, 0.66, 0.96, 1.0);							    \n"	// light blue (25,168,244)
-	"	else if (lookup.w >= 2)	                							\n"
+	"	else if (lookup.w > 0.0321)	                							\n"
 	"		colour = vec4(1.0, 0.92, 0.23, 1.0);								\n" // yellow (255,234,58)
-	"	else if (lookup.w > 0.66)	                							\n"
+	"	else if (lookup.w > 0.0236)	                							\n"
 	"		colour = vec4(0.5, 0.2, 0.0, 1.0);								\n" // brown (128, 51, 0)
 	"	else                      	                							\n"
 	"		colour = vec4(0.37, 0.49, 0.55, 1.0);								\n" // blue grey (91, 124, 140)
@@ -279,7 +289,8 @@ __global__ void output_EV_agent_to_VBO(xmachine_memory_EV_list* agents, glm::vec
 	vbo[index].x += agents->x[index] - centralise.x;
 	vbo[index].y += agents->y[index] - centralise.y;
 	vbo[index].z = agents->z[index] - centralise.z;
-	vbo[index].w = ((agents->radius_um[index] * 2000.f) / 300.f) * 8.f;  // agents->colour[index];
+	//vbo[index].w = ((agents->radius_um[index] * 2000.f) / 300.f) * 8.f;  // agents->colour[index];
+	vbo[index].w = agents->radius_um[index];// *53.333333333333336f;
 }
 
 __global__ void output_CiliaryCell_agent_to_VBO(xmachine_memory_CiliaryCell_list* agents,
@@ -320,9 +331,6 @@ __global__ void output_SecretoryCell_agent_to_VBO(xmachine_memory_SecretoryCell_
 
 void initVisualisation()
 {
-	//set the CUDA GL device: Will cause an error without this since CUDA 3.0
-	// cudaGLSetGLDevice(0);
-
 	// Create GL context
 	int   argc = 1;
 	char glutString[] = "GLUT application";
@@ -342,10 +350,13 @@ void initVisualisation()
 	// register callbacks
 	glutReshapeFunc(reshape);
 	glutDisplayFunc(display);
+	glutCloseFunc(close);
 	glutKeyboardFunc(keyboard);
 	glutSpecialFunc(special);
 	glutMouseFunc(mouse);
 	glutMotionFunc(motion);
+
+	glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 
 	// create VBO's
 	// CAMG allocate enough buffer space to contain the vertices of a single sphere only
@@ -363,9 +374,9 @@ void initVisualisation()
 	setVertexBufferData();
 
 	// create TBO - This does the CUDA - 
-	createTBO(&EV_default_tbo, &EV_default_displacementTex, xmachine_memory_EV_MAX * sizeof(glm::vec4));
-	createTBO(&CiliaryCell_default_tbo, &CiliaryCell_default_displacementTex, xmachine_memory_CiliaryCell_MAX * sizeof(glm::vec4));
-	createTBO(&SecretoryCell_default_tbo, &SecretoryCell_default_displacementTex, xmachine_memory_SecretoryCell_MAX * sizeof(glm::vec4));
+	createTBO(&EV_default_cgr, &EV_default_tbo, &EV_default_displacementTex, xmachine_memory_EV_MAX * sizeof(glm::vec4));
+	createTBO(&CiliaryCell_c_default_cgr, &CiliaryCell_default_tbo, &CiliaryCell_default_displacementTex, xmachine_memory_CiliaryCell_MAX * sizeof(glm::vec4));
+	createTBO(&SecretoryCell_s_default_cgr, &SecretoryCell_default_tbo, &SecretoryCell_default_displacementTex, xmachine_memory_SecretoryCell_MAX * sizeof(glm::vec4));
 
 	//set shader uniforms
 	glUseProgram(shaderProgram);
@@ -410,8 +421,10 @@ void runCuda()
 
 	if (get_agent_EV_default_count() > 0)
 	{
+		size_t accessibleBufferSize = 0;
 		// map OpenGL buffer object for writing from CUDA
-		gpuErrchk(cudaGLMapBufferObject((void**)&dptr, EV_default_tbo));
+		gpuErrchk(cudaGraphicsMapResources(1, &EV_default_cgr));
+		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&dptr, &accessibleBufferSize, EV_default_cgr));
 		//cuda block size
 		tile_size = (int)ceil((float)get_agent_EV_default_count() / threads_per_tile);
 		grid = dim3(tile_size, 1, 1);
@@ -426,13 +439,15 @@ void runCuda()
 		output_EV_agent_to_VBO << < grid, threads >> >(get_device_EV_default_agents(), dptr, centralise, offset_x, offset_y);
 		gpuErrchkLaunch();
 		// unmap buffer object
-		gpuErrchk(cudaGLUnmapBufferObject(EV_default_tbo));
+		gpuErrchk(cudaGraphicsUnmapResources(1, &EV_default_cgr));
 	}
 
 	if (get_agent_CiliaryCell_c_default_count() > 0)
 	{
+		size_t accessibleBufferSize = 0;
 		// map OpenGL buffer object for writing from CUDA
-		gpuErrchk(cudaGLMapBufferObject((void**)&dptr2, CiliaryCell_default_tbo));
+		gpuErrchk(cudaGraphicsMapResources(1, &CiliaryCell_c_default_cgr));
+		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&dptr2, &accessibleBufferSize, CiliaryCell_c_default_cgr));
 		//cuda block size
 		tile_size = (int)ceil((float)get_agent_CiliaryCell_c_default_count() / threads_per_tile);
 		grid = dim3(tile_size, 1, 1);
@@ -447,13 +462,15 @@ void runCuda()
 		output_CiliaryCell_agent_to_VBO << < grid, threads >> >(get_device_CiliaryCell_c_default_agents(), dptr2, centralise, offset_x, offset_y);
 		gpuErrchkLaunch();
 		// unmap buffer object
-		gpuErrchk(cudaGLUnmapBufferObject(CiliaryCell_default_tbo));
+		gpuErrchk(cudaGraphicsUnmapResources(1, &CiliaryCell_c_default_cgr));
 	}
 
 	if (get_agent_SecretoryCell_s_default_count() > 0)
 	{
+		size_t accessibleBufferSize = 0;
 		// map OpenGL buffer object for writing from CUDA
-		gpuErrchk(cudaGLMapBufferObject((void**)&dptr3, SecretoryCell_default_tbo));
+		gpuErrchk(cudaGraphicsMapResources(1, &SecretoryCell_s_default_cgr));
+		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&dptr2, &accessibleBufferSize, SecretoryCell_s_default_cgr));
 		//cuda block size
 		tile_size = (int)ceil((float)get_agent_SecretoryCell_s_default_count() / threads_per_tile);
 		grid = dim3(tile_size, 1, 1);
@@ -468,7 +485,7 @@ void runCuda()
 		output_SecretoryCell_agent_to_VBO << < grid, threads >> >(get_device_SecretoryCell_s_default_agents(), dptr2, centralise, offset_x, offset_y);
 		gpuErrchkLaunch();
 		// unmap buffer object
-		gpuErrchk(cudaGLUnmapBufferObject(SecretoryCell_default_tbo));
+		gpuErrchk(cudaGraphicsUnmapResources(1, &SecretoryCell_s_default_cgr));
 	}
 
 }
@@ -630,7 +647,7 @@ void deleteVBO(GLuint* vbo)
 ////////////////////////////////////////////////////////////////////////////////
 //! Create TBO
 ////////////////////////////////////////////////////////////////////////////////
-void createTBO(GLuint* tbo, GLuint* tex, GLuint size)
+void createTBO(cudaGraphicsResource_t* cudaResource, GLuint* tbo, GLuint* tex, GLuint size)
 {
 	// &EV_default_tbo, &EV_default_displacementTex, 
 	// generates one buffer object name in tbo
@@ -654,7 +671,7 @@ void createTBO(GLuint* tbo, GLuint* tex, GLuint size)
 	glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
 
 	// register buffer object with CUDA
-	gpuErrchk(cudaGLRegisterBufferObject(*tbo));
+	gpuErrchk(cudaGraphicsGLRegisterBuffer(cudaResource, *tbo, cudaGraphicsMapFlagsWriteDiscard));
 
 	checkGLError();
 }
@@ -662,12 +679,13 @@ void createTBO(GLuint* tbo, GLuint* tex, GLuint size)
 ////////////////////////////////////////////////////////////////////////////////
 //! Delete TBO
 ////////////////////////////////////////////////////////////////////////////////
-void deleteTBO(GLuint* tbo)
+void deleteTBO(cudaGraphicsResource_t* cudaResource, GLuint* tbo)
 {
+	gpuErrchk(cudaGraphicsUnregisterResource(*cudaResource));
+	*cudaResource = 0;
+
 	glBindBuffer(1, *tbo);
 	glDeleteBuffers(1, tbo);
-
-	gpuErrchk(cudaGLUnregisterBufferObject(*tbo));
 
 	*tbo = 0;
 }
@@ -984,13 +1002,7 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 		break;
 		// Esc == 27
 	case(27) :
-		deleteVBO(&sphereVerts);
-		deleteVBO(&sphereNormals);
-
-		deleteTBO(&EV_default_tbo);
-
-		cudaEventDestroy(start);
-		cudaEventDestroy(stop);
+		
 		exit(EXIT_SUCCESS);
 		// Space == 32
 	case(GLUT_KEY_RIGHT) :
@@ -1001,7 +1013,18 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 }
 
 
+void close() {
+	deleteVBO(&sphereVerts);
+	deleteVBO(&sphereNormals);
 
+	deleteTBO(&EV_default_cgr, &EV_default_tbo);
+	deleteTBO(&SecretoryCell_s_default_cgr, &SecretoryCell_default_tbo);
+	deleteTBO(&CiliaryCell_c_default_cgr, &CiliaryCell_default_tbo);
+
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
+	cleanup();
+}
 
 void special(int key, int x, int y){
 }

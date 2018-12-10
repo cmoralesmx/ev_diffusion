@@ -14,7 +14,13 @@
       </gpu:variable>
       <gpu:variable>
         <type>int</type>
-        <name>const_ev_physics</name>
+        <name>boundaries_enabled</name>
+        <description>Boolean flag</description>
+        <defaultValue>1</defaultValue>
+      </gpu:variable>
+      <gpu:variable>
+        <type>int</type>
+        <name>const_ev_drag</name>
         <description>Boolean flag</description>
         <defaultValue>1</defaultValue>
       </gpu:variable>
@@ -86,6 +92,12 @@
         <type>float</type>
         <name>new_evs_threshold</name>
         <defaultValue>1.0f</defaultValue>
+      </gpu:variable>
+      <gpu:variable>
+        <type>int</type>
+        <name>new_evs_random_direction</name>
+        <description>Boolean flag</description>
+        <defaultValue>0</defaultValue>
       </gpu:variable>
       
       <gpu:variable>
@@ -424,10 +436,20 @@
               <gpu:type>optional_message</gpu:type>
             </gpu:output>
           </outputs>
+          <gpu:globalCondition>
+            <lhs>
+              <value>boundaries_enabled</value>
+            </lhs>
+            <operator>></operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+            <gpu:maxItterations>10000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          
           <gpu:reallocate>false</gpu:reallocate>
-          
           <gpu:RNG>false</gpu:RNG>
-          
         </gpu:function>
         <!-- test ciliary cell collision -->
         <gpu:function>
@@ -446,10 +468,21 @@
               <gpu:type>optional_message</gpu:type>
             </gpu:output>
           </outputs>
+
+          <gpu:globalCondition>
+            <lhs>
+              <value>boundaries_enabled</value>
+            </lhs>
+            <operator>></operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+            <gpu:maxItterations>10000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          
           <gpu:reallocate>false</gpu:reallocate>
-
           <gpu:RNG>false</gpu:RNG>
-
         </gpu:function>
         <!-- test ev collision -->
         <gpu:function>
@@ -698,14 +731,14 @@
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
-        <!-- physics affecting the agent -->
+        <!-- drag affecting the agent -->
         <gpu:function>
-          <name>ev_physics</name>
+          <name>ev_drag</name>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <gpu:globalCondition>
             <lhs>
-              <value>const_ev_physics</value>
+              <value>const_ev_drag</value>
             </lhs>
             <operator>></operator>
             <rhs>
@@ -1133,7 +1166,7 @@
     
     <layer>
       <gpu:layerFunction>
-        <name>ev_physics</name>
+        <name>ev_drag</name>
       </gpu:layerFunction>
     </layer>
     <layer>

@@ -133,7 +133,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>cudart.lib;glew64.lib;glut32.lib;glut64.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cudart.lib;glew64.lib;freeglut.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>../../lib/;%(AdditionalLibraryDirectories);$(CudaToolkitLibDir)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -221,6 +221,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </CudaCompile>
     <FLAMEGPU_Template_Build_Rule>
       <SimulationTransform>true</SimulationTransform>
+      <VisualisationTransform>false</VisualisationTransform>
     </FLAMEGPU_Template_Build_Rule>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -238,13 +239,13 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug_Console|x64'">true</ExcludedFromBuild>
     </ClInclude>
     <ClInclude Include="src\model\textureAccess.h" />
-    <ClInclude Include="src\visualisation\myVisualisation.h">
+    <ClInclude Include="src\visualisation\myVisualisation.h" />
+    <ClInclude Include="src\visualisation\visualisation.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release_Console|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug_Visualisation|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug_Visualisation|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release_Visualisation|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug_Console|x64'">true</ExcludedFromBuild>
     </ClInclude>
-    <ClInclude Include="src\visualisation\visualisation.h" />
     <ClInclude Include="XMML.h">
       <DependentUpon>..\..\FLAMEGPU\schemas\XMML.xsd</DependentUpon>
     </ClInclude>
@@ -284,7 +285,9 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <Xml Include="..\..\FLAMEGPU\templates\io.xslt">
       <SubType>Designer</SubType>
     </Xml>
-    <Xml Include="..\..\FLAMEGPU\templates\main.xslt" />
+    <Xml Include="..\..\FLAMEGPU\templates\main.xslt">
+      <SubType>Designer</SubType>
+    </Xml>
     <Xml Include="..\..\FLAMEGPU\templates\simulation.xslt" />
     <Xml Include="..\..\FLAMEGPU\templates\visualisation.xslt">
       <SubType>Designer</SubType>

@@ -991,10 +991,10 @@ __FLAME_GPU_FUNC__ int test_ev_collision(xmachine_memory_EV* agent, xmachine_mes
 	return 0;
 }
 
-__FLAME_GPU_FUNC__ int ev_physics(xmachine_memory_EV* agent) {
+__FLAME_GPU_FUNC__ int ev_drag(xmachine_memory_EV* agent) {
 	// compute the drag force acting on the agent
 	// -6 pi w_viscosity radius velocity
-	float drag_force = - const_6_pi_viscosity * agent->radius_m  * (agent->velocity_ums / 1E+12);
+	float drag_force = -const_6_pi_viscosity * agent->radius_m  * (agent->velocity_ums * 1E-12);// / 1E+12);
 	// compute the acceleration
 	float acceleration = drag_force / agent->mass_kg;
 	
@@ -1049,19 +1049,18 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 		if(agent->time_since_last_secreted > seconds_before_introducing_new_evs){
 			
 			float rn = rnd<CONTINUOUS>(rand48);
-			int rand_i = (int)(rnd<CONTINUOUS>(rand48) * 120);
-
+			
 			if( rn > new_evs_threshold)
 			{
+				int rand_i = (int)(rnd<CONTINUOUS>(rand48) * 120);
 				// setup the new agent
 				// our simulations use 30-150 nm EVs
-				// self.diameter_um = self.diameter_nm / 1000
-				float diameter_nm = (rand_i % 120) + 30;  // radius = diameter/2
-				float diameter_um = diameter_nm / 1000;
+				float diameter_nm = (rand_i % 120) + 30;
+				float diameter_um = diameter_nm * 0.001;// / 1000;
 
-				float radius_nm = diameter_nm / 2;
-				float radius_um = diameter_um / 2; // ((30-150 nm) * 0.001/2) // (15 to 75) 
-				float radius_m = radius_um / 1e+6;
+				float radius_nm = diameter_nm * .5;
+				float radius_um = diameter_um * .5; // ((30-150 nm) * 0.001/2) // (15 to 75) 
+				float radius_m = radius_um * 1E-6; // / 1e+6;
 
 				// compute the volume
 				float volume = const_pi_4div3 * radius_nm * radius_nm * radius_nm;
@@ -1076,10 +1075,19 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 				float velocity_m = sqrt(4 * diffusion_rate_m);
 
 				// decompose velocity
-				float vx = velocity_um * agent->direction_x;
-				float vy = velocity_um * agent->direction_y;
+				float vx = 0;
+				float vy = 0; 
+				if (new_evs_random_direction > 0) {
+					float r = 2 * M_PI * rnd<CONTINUOUS>(rand48);
+					vx = velocity_um * cos(r);
+					vy = velocity_um * sin(r);
+				}
+				else {
+					vx = velocity_um * agent->direction_x;
+					vy = velocity_um * agent->direction_y;
+				}
 
-				// displace the ev further by a sigle step
+				// displace the ev by a sigle step
 				float x = agent->x + vx * dt;
 				float y = agent->y + vy * dt;
 				unsigned int id = generate_EV_id();
