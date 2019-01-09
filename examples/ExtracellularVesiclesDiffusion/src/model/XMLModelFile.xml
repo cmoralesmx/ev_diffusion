@@ -520,7 +520,7 @@
           <name>ev_collision_resolution</name>
           <description>Corrects the position of an EV involved in a collision with another EV. This function applies to EVs with variable "closest_ev_id" > -1</description>
           <currentState>default</currentState>
-          <nextState>default</nextState>
+          <nextState>collision_resolved</nextState>
           <inputs>
             <gpu:input>
               <messageName>ev_collision</messageName>
@@ -596,7 +596,7 @@
           <name>cell_collision_resolution</name>
           <description>Corrects the position of an EV as a result of colliding with a cell. This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp; (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
           <currentState>default</currentState>
-          <nextState>default</nextState>
+          <nextState>collision_resolved</nextState>
           <inputs>
             <gpu:input>
               <messageName>cell_collision</messageName>
@@ -664,7 +664,7 @@
           <name>ciliary_cell_collision_resolution</name>
           <description>Corrects the position of an EV as a result of colliding with a ciliary cell. This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp; (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
           <currentState>default</currentState>
-          <nextState>default</nextState>
+          <nextState>collision_resolved</nextState>
           <inputs>
             <gpu:input>
               <messageName>ciliary_cell_collision</messageName>
@@ -749,6 +749,23 @@
           </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
+
+        <!-- brownian movement affecting the agent -->
+        <gpu:function>
+          <name>brownian_movement</name>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>true</gpu:RNG>
+        </gpu:function>
+        <!-- reset agent state -->
+        <gpu:function>
+          <name>reset_state</name>
+          <currentState>collision_resolved</currentState>
+          <nextState>default</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
+        
         <!-- move -->
         <gpu:function>
           <name>move</name>
@@ -764,6 +781,9 @@
         </gpu:state>
         <gpu:state>
           <name>initial</name>
+        </gpu:state>
+        <gpu:state>
+          <name>collision_resolved</name>
         </gpu:state>
         <initialState>default</initialState>
       </states>
@@ -1120,7 +1140,7 @@
       <gpu:layerFunction><name>secrete_ev</name></gpu:layerFunction>
     </layer>
     <layer>
-      <!-- Create a message communicate the EVs current positions -->
+      <!-- Create a message to communicate the EVs current positions -->
       <gpu:layerFunction><name>output_data</name></gpu:layerFunction>
     </layer>
     <layer>
@@ -1143,32 +1163,40 @@
     <layer>
       <gpu:layerFunction>
         <name>test_ev_collision</name>
-        <!-- Ev-Ev collisions generate an ev_collision_message -->
+        <!-- Ev-Ev collisions generates an ev_collision_message -->
       </gpu:layerFunction>
     </layer>
     <layer>
-      <!-- Find the closest collision with the system boundaries or other EVs-->
+      <!-- Solve collisions with secretory cells -->
       <gpu:layerFunction>
         <name>cell_collision_resolution</name>
       </gpu:layerFunction>
     </layer>
     <layer>
-      <!-- Find the closest collision with the system boundaries or other EVs-->
+      <!-- Solve collisions with ciliary cells -->
       <gpu:layerFunction>
         <name>ciliary_cell_collision_resolution</name>
       </gpu:layerFunction>
     </layer>
     <layer>
+      <!-- Solve inter vesicle collisions -->
       <gpu:layerFunction>
         <name>ev_collision_resolution</name>
       </gpu:layerFunction>
     </layer>
-    
     <layer>
+      <!-- Vesicles not involved in a collision -->
       <gpu:layerFunction>
-        <name>ev_drag</name>
+        <name>brownian_movement</name>
       </gpu:layerFunction>
     </layer>
+    <layer>
+      <!-- Vesicles not involved in a collision -->
+      <gpu:layerFunction>
+        <name>reset_state</name>
+      </gpu:layerFunction>
+    </layer>
+    
     <layer>
       <!-- Advance the simulation by a single timestep -->
       <gpu:layerFunction><name>move</name></gpu:layerFunction>

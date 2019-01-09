@@ -1002,8 +1002,12 @@ __FLAME_GPU_FUNC__ int ev_drag(xmachine_memory_EV* agent) {
 	float dir_x = agent->x - agent->x_1;
 	float dir_y = agent->y - agent->y_1;
 	float dir_len = vlength(dir_x, dir_y);
-	float dir_x_unit = dir_x / dir_len;
-	float dir_y_unit = dir_y / dir_len;
+	float dir_x_unit = 0;
+	float dir_y_unit = 0; 
+	if (dir_len > 0) {
+		dir_y / dir_len;
+		dir_x / dir_len;
+	}
 
 	// decompose the acceleration
 	float acceleration_x = dir_x_unit * acceleration;
@@ -1012,6 +1016,24 @@ __FLAME_GPU_FUNC__ int ev_drag(xmachine_memory_EV* agent) {
 	agent->vx += acceleration_x * dt;
 	agent->vy += acceleration_y * dt;
 	agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
+	return 0;
+}
+
+
+__FLAME_GPU_FUNC__ int reset_state(xmachine_memory_EV* agent) {
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int brownian_movement(xmachine_memory_EV* agent, RNG_rand48* rand48) {
+	float rn = rnd<CONTINUOUS>(rand48);
+	if (rn > 0.5) {
+		
+		float r = 2 * M_PI * rnd<CONTINUOUS>(rand48);
+		agent->vx = agent->velocity_ums * cos(r);
+		agent->vy = agent->velocity_ums * sin(r);
+		agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
+	}
+
 	return 0;
 }
 /**
