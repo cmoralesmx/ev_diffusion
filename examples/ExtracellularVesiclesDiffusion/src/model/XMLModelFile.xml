@@ -18,12 +18,6 @@
         <description>Boolean flag</description>
         <defaultValue>1</defaultValue>
       </gpu:variable>
-      <gpu:variable>
-        <type>int</type>
-        <name>const_ev_drag</name>
-        <description>Boolean flag</description>
-        <defaultValue>1</defaultValue>
-      </gpu:variable>
       
       <gpu:variable>
         <type>float</type>
@@ -105,6 +99,12 @@
         <name>dt</name>
         <description>The timestep of the model</description>
         <defaultValue>0.003967782</defaultValue>
+      </gpu:variable>
+      <gpu:variable>
+        <type>int</type>
+        <name>dof</name>
+        <description>Degrees of Freedom in the model</description>
+        <defaultValue>1</defaultValue>
       </gpu:variable>
     </gpu:constants>
     <gpu:functionFiles>
@@ -364,6 +364,10 @@
           <name>diffusion_rate_um</name>
         </gpu:variable>
         <gpu:variable>
+          <type>float</type>
+          <name>diff_rate_um_x_twice_dof</name>
+        </gpu:variable>
+        <gpu:variable>
           <type>int</type>
           <name>closest_ev_id</name>
         </gpu:variable>
@@ -382,7 +386,7 @@
         <gpu:variable>
           <type>float</type>
           <name>age</name>
-          <defaultValue>0</defaultValue>
+          <defaultValue>0.003967782</defaultValue>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -731,30 +735,41 @@
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
-        <!-- drag affecting the agent -->
+
+        <!-- brownian movement affecting the agent -->
         <gpu:function>
-          <name>ev_drag</name>
+          <name>brownian_movement_1d</name>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <gpu:globalCondition>
             <lhs>
-              <value>const_ev_drag</value>
+              <value>dof</value>
             </lhs>
-            <operator>></operator>
+            <operator>==</operator>
             <rhs>
-              <value>0</value>
+              <value>1</value>
             </rhs>
-            <gpu:maxItterations>10000000</gpu:maxItterations>
+            <gpu:maxItterations>1000000</gpu:maxItterations>
             <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
           </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>true</gpu:RNG>
         </gpu:function>
-
-        <!-- brownian movement affecting the agent -->
         <gpu:function>
-          <name>brownian_movement</name>
+          <name>brownian_movement_2d</name>
           <currentState>default</currentState>
           <nextState>default</nextState>
+          <gpu:globalCondition>
+            <lhs>
+              <value>dof</value>
+            </lhs>
+            <operator>==</operator>
+            <rhs>
+              <value>2</value>
+            </rhs>
+            <gpu:maxItterations>1000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>true</gpu:RNG>
         </gpu:function>
@@ -1151,50 +1166,34 @@
     </layer>
     <layer>
       <!-- Find the closest collision with the boundaries or other EVs-->
-      <gpu:layerFunction>
-        <name>test_secretory_cell_collision</name>
-      </gpu:layerFunction>
+      <gpu:layerFunction><name>test_secretory_cell_collision</name></gpu:layerFunction>
     </layer>
     <layer>
-      <gpu:layerFunction>
-        <name>test_ciliary_cell_collision</name>
-      </gpu:layerFunction>
+      <gpu:layerFunction><name>test_ciliary_cell_collision</name></gpu:layerFunction>
     </layer>
     <layer>
-      <gpu:layerFunction>
-        <name>test_ev_collision</name>
-        <!-- Ev-Ev collisions generates an ev_collision_message -->
-      </gpu:layerFunction>
+      <gpu:layerFunction><name>test_ev_collision</name></gpu:layerFunction>
     </layer>
     <layer>
       <!-- Solve collisions with secretory cells -->
-      <gpu:layerFunction>
-        <name>cell_collision_resolution</name>
-      </gpu:layerFunction>
+      <gpu:layerFunction><name>cell_collision_resolution</name></gpu:layerFunction>
     </layer>
     <layer>
       <!-- Solve collisions with ciliary cells -->
-      <gpu:layerFunction>
-        <name>ciliary_cell_collision_resolution</name>
-      </gpu:layerFunction>
+      <gpu:layerFunction><name>ciliary_cell_collision_resolution</name></gpu:layerFunction>
     </layer>
     <layer>
       <!-- Solve inter vesicle collisions -->
-      <gpu:layerFunction>
-        <name>ev_collision_resolution</name>
-      </gpu:layerFunction>
+      <gpu:layerFunction><name>ev_collision_resolution</name></gpu:layerFunction>
     </layer>
     <layer>
       <!-- Vesicles not involved in a collision -->
-      <gpu:layerFunction>
-        <name>brownian_movement</name>
-      </gpu:layerFunction>
+      <gpu:layerFunction><name>brownian_movement_1d</name></gpu:layerFunction>
+      <gpu:layerFunction><name>brownian_movement_2d</name></gpu:layerFunction>
     </layer>
     <layer>
-      <!-- Vesicles not involved in a collision -->
-      <gpu:layerFunction>
-        <name>reset_state</name>
-      </gpu:layerFunction>
+      <!-- Vesicles involved in a collision -->
+      <gpu:layerFunction><name>reset_state</name></gpu:layerFunction>
     </layer>
     
     <layer>

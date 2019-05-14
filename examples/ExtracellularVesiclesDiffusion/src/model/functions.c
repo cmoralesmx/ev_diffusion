@@ -991,48 +991,42 @@ __FLAME_GPU_FUNC__ int test_ev_collision(xmachine_memory_EV* agent, xmachine_mes
 	return 0;
 }
 
-__FLAME_GPU_FUNC__ int ev_drag(xmachine_memory_EV* agent) {
-	// compute the drag force acting on the agent
-	// -6 pi w_viscosity radius velocity
-	float drag_force = -const_6_pi_viscosity * agent->radius_m  * (agent->velocity_ums * 1E-12);// / 1E+12);
-	// compute the acceleration
-	float acceleration = drag_force / agent->mass_kg;
-	
-	// compute the direction
-	float dir_x = agent->x - agent->x_1;
-	float dir_y = agent->y - agent->y_1;
-	float dir_len = vlength(dir_x, dir_y);
-	float dir_x_unit = 0;
-	float dir_y_unit = 0; 
-	if (dir_len > 0) {
-		dir_y / dir_len;
-		dir_x / dir_len;
-	}
-
-	// decompose the acceleration
-	float acceleration_x = dir_x_unit * acceleration;
-	float acceleration_y = dir_y_unit * acceleration;
-	// affect the velocity with the acceleration
-	agent->vx += acceleration_x * dt;
-	agent->vy += acceleration_y * dt;
-	agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
-	return 0;
-}
-
-
 __FLAME_GPU_FUNC__ int reset_state(xmachine_memory_EV* agent) {
 	return 0;
 }
 
-__FLAME_GPU_FUNC__ int brownian_movement(xmachine_memory_EV* agent, RNG_rand48* rand48) {
-	float rn = rnd<CONTINUOUS>(rand48);
-	if (rn > 0.5) {
-		
-		float r = 2 * M_PI * rnd<CONTINUOUS>(rand48);
-		agent->vx = agent->velocity_ums * cos(r);
-		agent->vy = agent->velocity_ums * sin(r);
-		agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
-	}
+__FLAME_GPU_FUNC__ int brownian_movement_1d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
+	float u1, u2, r, theta;
+
+	u1 = rnd<CONTINUOUS>(rand48);
+	u2 = rnd<CONTINUOUS>(rand48);
+	r = sqrt(-2.0 * log(u1));
+	theta = 2 * M_PI * u2;
+
+	// the product of r * (cos|sin)(theta) becomes the displacement factor to use in this iteration
+	agent->vx = agent->velocity_ums * r * cos(theta);
+	//agent->vx += agent->velocity_ums * r * sin(theta);
+
+	//agent->velocity_ums = sqrtf(agent->vx * agent->vx);
+	return 0;
+}
+
+/*
+Uses the Box-Mueller transform to generate a pair of normally distributed random numbers
+by sampling from two uniformly distributed RNG.
+Then, the values are transformed into cartesian coordinates.
+Due to limitations in FlameGPU, we sample both continuos numbers from the same RNG.
+*/
+__FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
+	float u1, u2, fac, rsq, r, theta; 
+	
+	u1 = rnd<CONTINUOUS>(rand48);
+	u2 = rnd<CONTINUOUS>(rand48);
+	r = sqrt(-2.0 * log(u1));
+	theta = 2 * M_PI * u2;
+
+	agent->vx = agent->velocity_ums * r * cos(theta);
+	agent->vy = agent->velocity_ums * r * sin(theta);
 
 	return 0;
 }
@@ -1047,9 +1041,11 @@ __FLAME_GPU_FUNC__ int move(xmachine_memory_EV* agent){
 	agent->x_1 = agent->x;
 	agent->y_1 = agent->y;
 
-	agent->x += agent->vx * dt;
-	agent->y += agent->vy * dt;
+	agent->x += agent->vx;
+	agent->y += agent->vy;
 	agent->age += dt;
+
+	agent->velocity_ums = sqrt(agent->diff_rate_um_x_twice_dof * agent->age) / agent->age;
 
 	agent->closest_cell_id = -1;
 	agent->closest_cell_distance = -1.0f;
@@ -1116,7 +1112,9 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 				
 				add_EV_agent(EVs, id, x, y, 0,
 					agent->x, agent->y, vx, vy, volume * const_mass_per_volume_unit, 0, // <- colour
-					radius_um, radius_m, diffusion_rate_m, diffusion_rate_um, -1, -1, -1, -1, 0, 
+					radius_um, radius_m, diffusion_rate_m, diffusion_rate_um, 
+					diffusion_rate_um * 2 * dof,
+					-1, -1, -1, -1, 0, 
 					agent->direction_x, agent->direction_y, velocity_um, velocity_m);
 
 				agent->time_since_last_secreted = 0;
