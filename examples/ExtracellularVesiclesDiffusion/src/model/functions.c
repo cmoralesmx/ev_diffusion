@@ -1005,9 +1005,7 @@ __FLAME_GPU_FUNC__ int brownian_movement_1d(xmachine_memory_EV* agent, RNG_rand4
 
 	// the product of r * (cos|sin)(theta) becomes the displacement factor to use in this iteration
 	agent->vx = agent->velocity_ums * r * cos(theta);
-	//agent->vx += agent->velocity_ums * r * sin(theta);
 
-	//agent->velocity_ums = sqrtf(agent->vx * agent->vx);
 	return 0;
 }
 
@@ -1020,16 +1018,17 @@ Due to limitations in FlameGPU, we sample both continuos numbers from the same R
 __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
 	float u1, u2, fac, rsq, r, theta; 
 	
-	u1 = rnd<CONTINUOUS>(rand48);
-	u2 = rnd<CONTINUOUS>(rand48);
-	r = sqrt(-2.0 * log(u1));
-	theta = 2 * M_PI * u2;
+		u1 = rnd<CONTINUOUS>(rand48);
+		u2 = rnd<CONTINUOUS>(rand48);
+		// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
+		r = sqrt(-2.0 * log(u1)) * agent->velocity_ums; // computes the radius of a circumference.
+		theta = 2 * M_PI * u2; // computes the angle of rotation
 
-	agent->vx = agent->velocity_ums * r * cos(theta);
-	agent->vy = agent->velocity_ums * r * sin(theta);
-
+		agent->vx = r * cos(theta);
+		agent->vy = r * sin(theta);
 	return 0;
 }
+
 /**
  * move FLAMEGPU Agent Function
  * Automatically generated using functions.xslt
@@ -1045,7 +1044,7 @@ __FLAME_GPU_FUNC__ int move(xmachine_memory_EV* agent){
 	agent->y += agent->vy;
 	agent->age += dt;
 
-	agent->velocity_ums = sqrt(agent->diff_rate_um_x_twice_dof * agent->age) / agent->age;
+	//agent->velocity_ums = sqrt(agent->diff_rate_um_x_twice_dof * agent->age) / agent->age;
 
 	agent->closest_cell_id = -1;
 	agent->closest_cell_distance = -1.0f;
