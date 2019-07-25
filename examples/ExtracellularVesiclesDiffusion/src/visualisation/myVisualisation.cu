@@ -34,7 +34,7 @@
 
 extern float *h_xs;
 extern float *h_ys;
-extern float *h_angles;
+//extern float *h_angles;
 #define FOVY 45.0
 
 // bo variables
@@ -331,6 +331,7 @@ __global__ void output_SecretoryCell_agent_to_VBO(xmachine_memory_SecretoryCell_
 
 void initVisualisation()
 {
+	printf("Initialising visualisation\n");
 	// Create GL context
 	int   argc = 1;
 	char glutString[] = "GLUT application";
@@ -384,6 +385,7 @@ void initVisualisation()
 	//create a events for timer
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
+	printf("Visualisation initialised\n");
 }
 
 void runVisualisation(){
@@ -838,8 +840,7 @@ void display()
 	*/
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_BUFFER_EXT, EV_default_displacementTex);
-
-	//loop
+	//int top_limit = get_agent_EV_default_count() > 0 ? get_agent_EV_default_count() : get_agent_EV_initial_count();
 	for (int i = 0; i< get_agent_EV_default_count(); i++){
 		// specify the value (i) of a generic vertex attribute to be modified. 
 		// Here vs_mapIndex is referencing the attribute "mapIndex from the gl program shaderProgam
@@ -878,20 +879,20 @@ void display()
 	glBindTexture(GL_TEXTURE_BUFFER_EXT, CiliaryCell_default_displacementTex);
 	
 	//loop
-	for (int i = 0; i< get_agent_CiliaryCell_c_default_count(); i++) {
-		glVertexAttrib1f(walls_vs_mapIndex, (float)i);
-		glEnableClientState(GL_VERTEX_ARRAY);
-		glEnableClientState(GL_NORMAL_ARRAY);
+	//for (int i = 0; i< get_agent_CiliaryCell_c_default_count(); i++) {
+	//	glVertexAttrib1f(walls_vs_mapIndex, (float)i);
+	//	glEnableClientState(GL_VERTEX_ARRAY);
+	//	glEnableClientState(GL_NORMAL_ARRAY);
 
-		// We specify the source for the data we will be rendering
+	//	// We specify the source for the data we will be rendering
 
-		glBindBuffer(GL_ARRAY_BUFFER, wallVerts);
-		glVertexPointer(3, GL_FLOAT, 0, 0);
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	//	glBindBuffer(GL_ARRAY_BUFFER, wallVerts);
+	//	glVertexPointer(3, GL_FLOAT, 0, 0);
+	//	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-		glDisableClientState(GL_NORMAL_ARRAY);
-		glDisableClientState(GL_VERTEX_ARRAY);
-	}
+	//	glDisableClientState(GL_NORMAL_ARRAY);
+	//	glDisableClientState(GL_VERTEX_ARRAY);
+	//}
 	for (int i = 0; i< get_agent_SecretoryCell_s_default_count(); i++) {
 		glVertexAttrib1f(walls_vs_mapIndex, (float)i);
 		glEnableClientState(GL_VERTEX_ARRAY);

@@ -118,13 +118,8 @@ __FLAME_GPU_INIT_FUNC__ void precompute_values() {
  * @param location_messages Pointer to output message list of type xmachine_message_location_list. Must be passed as an argument to the add_location_message function ??.
  */
 __FLAME_GPU_FUNC__ int output_data(xmachine_memory_EV* agent, xmachine_message_location_list* location_messages){
-    
 	add_location_message(location_messages, agent->id, agent->x, agent->y,
 		agent->z, agent->radius_um, agent->mass_kg, agent->vx, agent->vy);
-	agent->closest_ev_id = -1;
-	agent->closest_ev_distance = -1.0f;
-	agent->closest_cell_id = -1;
-	agent->closest_cell_distance = -1.0f;
     return 0;
 }
 
@@ -137,7 +132,9 @@ __FLAME_GPU_FUNC__ int output_data(xmachine_memory_EV* agent, xmachine_message_l
 __FLAME_GPU_FUNC__ int output_ciliary_cell_location(xmachine_memory_CiliaryCell* agent, xmachine_message_ciliary_cell_location_list* location_messages) {
 
 	add_ciliary_cell_location_message(location_messages, agent->id, agent->x, agent->y, 0,
-		agent->p1_x, agent->p1_y, agent->p2_x, agent->p2_y, agent->direction_x, agent->direction_y
+		agent->p1_x, agent->p1_y, agent->p2_x, agent->p2_y, agent->direction_x, agent->direction_y,
+		agent->direction_x_unit, agent->direction_y_unit, agent->direction_length, 
+		agent->normal_x, agent->normal_y, agent->unit_normal_x, agent->unit_normal_y, agent->normal_length
 	);
 	return 0;
 }
@@ -145,17 +142,19 @@ __FLAME_GPU_FUNC__ int output_ciliary_cell_location(xmachine_memory_CiliaryCell*
 __FLAME_GPU_FUNC__ int output_secretory_cell_location(xmachine_memory_SecretoryCell* agent, xmachine_message_secretory_cell_location_list* location_messages) {
 
 	add_secretory_cell_location_message(location_messages, agent->id, agent->x, agent->y, 0,
-		agent->p1_x, agent->p1_y, agent->p2_x, agent->p2_y, agent->direction_x, agent->direction_y
+		agent->p1_x, agent->p1_y, agent->p2_x, agent->p2_y, agent->direction_x, agent->direction_y,
+		agent->direction_x_unit, agent->direction_y_unit, agent->direction_length, 
+		agent->normal_x, agent->normal_y, agent->unit_normal_x, agent->unit_normal_y, agent->normal_length
 	);
 	return 0;
 }
 
 
-__device__ float perpendicular(float vec_x, float vec_y, float lenght_vec, int component=0) {
+__device__ float perpendicular(float vec_x, float vec_y, float length_vec, int component=0) {
 	float x, y;
-	if (lenght_vec > 0) {
-		x = vec_y * (1 / lenght_vec);
-		y = -vec_x * (1 / lenght_vec);
+	if (length_vec > 0) {
+		x = vec_y * (1 / length_vec);
+		y = -vec_x * (1 / length_vec);
 	}
 	else {
 		x = 0;// = make_float2(0, 0);
@@ -173,10 +172,11 @@ __device__ float vlength(float x, float y) {
 }
 
 __device__ float projection(float a_x, float a_y, float b_x, float b_y) {
+	float length = vlength(a_x, a_y);
 	float lengthVec = vlength(b_x, b_y);
-	if (vlength(a_x, a_y) == 0 || lengthVec == 0)
+	if (length == 0 || lengthVec == 0)
 		return 0;
-	return dotprod(a_x, a_y, b_x, b_y) / lengthVec;
+	return (a_x * b_x + a_y * b_y) / lengthVec;
 }
 
 __device__ float parallel(float vec_x, float vec_y, float u, int component = 0) {
@@ -190,79 +190,65 @@ __device__ float parallel(float vec_x, float vec_y, float u, int component = 0) 
 /**
 Collision resolution algorithm modified from Physics for Javascript Games, Animation, and Simulation Ch, 11
 */
-__FLAME_GPU_FUNC__ int cell_collision_resolution(xmachine_memory_EV* agent, xmachine_message_cell_collision_list* cell_collision_messages){
+__FLAME_GPU_FUNC__ int secretory_cell_collision_resolution(xmachine_memory_EV* agent, xmachine_message_secretory_cell_collision_list* secretory_cell_collision_messages){
 
-	xmachine_message_cell_collision* message = get_first_cell_collision_message(cell_collision_messages);
-
-	//float acceleration_x = 0, acceleration_y = 0;
+	xmachine_message_secretory_cell_collision* message = get_first_secretory_cell_collision_message(secretory_cell_collision_messages);
 	
 	while (message){
 		// we verify the ev_id in the message matches this agent's id
 		if (message->ev_id == agent->id) {
 			//printf("================ collision checking for agent %d and wall %d =================\n", agent->id, message->cell_id);
-			// vector along wall/cell
-			float cellDir_x = message->p2_x - message->p1_x;
-			float cellDir_y = message->p2_y - message->p1_y;
-			float cellDir_len = vlength(cellDir_x, cellDir_y);
-			float cellDir_x_unit = cellDir_x / cellDir_len;
-			float cellDir_y_unit = cellDir_y / cellDir_len;
-
-			//printf("cell dir x:%f y:%f\n", cellDir_x, cellDir_y);
+			
 			// vectors from ball to endpoints of wall
 			// var ballp1 = wall.p1.subtract(obj.pos2D);
-			float ballp1_x = message->p1_x - agent->x;
-			float ballp1_y = message->p1_y - agent->y;
-			float ballp2_x = message->p2_x - agent->x;
-			float ballp2_y = message->p2_y - agent->y;
-			//printf("ballp1 x:%f y:%f message->p1 x:%f y:%f\n", ballp1_x, ballp1_y, message->p1_x, message->p1_y);
+			float ev_p1x = message->p1_x - agent->x;
+			float ev_p1y = message->p1_y - agent->y;
+			float ev_p2x = message->p2_x - agent->x;
+			float ev_p2y = message->p2_y - agent->y;
 
 			// projection of above vectors onto wall vector
-			float proj1 = projection(ballp1_x, ballp1_y, cellDir_x, cellDir_y);
-			float proj2 = projection(ballp2_x, ballp2_y, cellDir_x, cellDir_y);
+			float proj1 = projection(ev_p1x, ev_p1y, message->cell_direction_x, message->cell_direction_y);
+			float proj2 = projection(ev_p2x, ev_p2y, message->cell_direction_x, message->cell_direction_y);
 			//printf("projection1:%f\n", proj1);
 
 			// Perpendicular distance vector from the object to the wall
 			// var dist = ballp1.addScaled(wdir.unit(), proj1*(-1));
 			// needs the cell direction unit vector
 			// float2 dist = ballp1 + (cellDir / length(cellDir)) * proj1 * -1;
-			
-			//printf("cellDir_unit x:%f, y:%f\n", cellDir_x_unit, cellDir_y_unit);
-			float dist_x = ballp1_x + (proj1 * -1) * cellDir_x_unit;  // <- distance to compensate
-			float dist_y = ballp1_y + (proj1 * -1) * cellDir_y_unit;
+			float dist_x = ev_p1x + message->cell_direction_x_unit * (proj1 * -1.0f);  // <- distance to compensate
+			float dist_y = ev_p1y + message->cell_direction_y_unit * (proj1 * -1.0f);
 
 			// collision detection
 			//var test = ((Math.abs(proj1) < wdir.length()) && (Math.abs(proj2) < wdir.length()));
-			
-			bool test = (abs(proj1) < cellDir_len) && (abs(proj2) < cellDir_len);
+			bool test = (abs(proj1) < message->cell_direction_length) && (abs(proj2) < message->cell_direction_length);
+			agent->velocity_ms = 111.0f;
+
 			if ((vlength(dist_x, dist_y) < agent->radius_um) && test)
 			{
 				//printf("Current values vx:%f vy:%f x:%f y:%f\n", agent->vx, agent->vy, agent->x, agent->y);
-				// 1. angle between velocity and wall 
-				float angle = acosf(dotprod(agent->vx, agent->vy, cellDir_x, cellDir_y) / (vlength(agent->vx, agent->vy) * cellDir_len));
-				//printf("angle: %f\n", angle);
-
+				// 1. angle between velocity vector and wall direction
+				float angle = acosf(dotprod(agent->vx, agent->vy, message->cell_direction_x, message->cell_direction_y) 
+					/ (vlength(agent->vx, agent->vy) * message->cell_direction_length));
+				
 				// 2. reposition object
 				// var normal = wall.normal;
 				// 2a compute the perpendicular to the cell
-				float normal_x = perpendicular(cellDir_x, cellDir_y, cellDir_len, 0);
-				float normal_y = perpendicular(cellDir_x, cellDir_y, cellDir_len, 1);
+				//float normal_x = perpendicular(message->cell_direction_x, message->cell_direction_y, message->cell_direction_length, 0);
+				//float normal_y = perpendicular(message->cell_direction_x, message->cell_direction_y, message->cell_direction_length, 1);
 				//printf("wall normal x:%f y:%f\n", normal_x, normal_y);
+				
 				// 2b scale the normal by -1 if needed
+				float normal_x = message->unit_normal_x;
+				float normal_y = message->unit_normal_y;
 				float d = dotprod(normal_x, normal_y, agent->vx, agent->vy);
-				if (d > 0) {
-					normal_x *= -1;
-					normal_y *= -1;
-					//printf("d > 0 wall with wrong normal?? \n");
-				}
+				if (d > 0) { normal_x *= -1.0; normal_y *= -1.0; }
 
 				// 3. compute deltaS
 				// var deltaS = (obj.radius + dist.dotProduct(normal)) / Math.sin(angle);
 				float deltaS = (agent->radius_um + dotprod(dist_x, dist_y, normal_x, normal_y)) / sin(angle);
-				//printf("distx:%f disty:%f, deltaS:%f\n", dist_x, dist_y, deltaS);
 
 				// 4. estimate what was the displacement = velocity parallel to delta
 				// var displ = obj.velo2D.para(deltaS);
-				// float2 displ = parallel(velocity, deltaS); <- parallel: return obj * (u / length(obj));
 				float displ_x = parallel(agent->vx, agent->vy, deltaS, 0);
 				float displ_y = parallel(agent->vx, agent->vy, deltaS, 1);
 
@@ -283,38 +269,31 @@ __FLAME_GPU_FUNC__ int cell_collision_resolution(xmachine_memory_EV* agent, xmac
 				// var Velo = obj.velo2D.multiply(vcor)
 				float new_velocity_x = agent->vx;// *vcor;
 				float new_velocity_y = agent->vy;// *vcor;
-				//printf("newVelocity x:%f y:%f\n", new_velocity_x, new_velocity_y);
 
 				// 6. decompose the velocity
 				// velocity vector component perpendicular to wall just before impact
 				// var normalVelo = dist.para(Velo.projection(dist));
-				// float2 normalVelocity = parallel(dist, projection(velocity, dist));
 				float velocityProjection = projection(new_velocity_x, new_velocity_y, dist_x, dist_y);
 				float normalVelocity_x = parallel(dist_x, dist_y, velocityProjection, 0);
 				float normalVelocity_y = parallel(dist_x, dist_y, velocityProjection, 1);
-				//printf("velocityProjection:%f normalVelocity_x:%f normalVelocity_y:%f\n", velocityProjection, normalVelocity_x, normalVelocity_y);
 
 				// velocity vector component parallel to wall; unchanged by impact
 				// var tangentVelo = Velo.subtract(normalVelo);
-				// float2 tangentVelocity = velocity - normalVelocity;
 				float tangentVelocity_x = new_velocity_x - normalVelocity_x;
 				float tangentVelocity_y = new_velocity_y - normalVelocity_y;
-				//printf("tangentVelocity_x:%f tangentVelocity_y:%f\n", tangentVelocity_x, tangentVelocity_y);
 
 				// velocity vector component perpendicular to wall just after impact
 				// obj.velo2D = tangentVelo.addScaled(normalVelo, -vfac);
-				//float2 newVelocity = tangentVelocity + normalVelocity * -1;
-
 				agent->vx = tangentVelocity_x + normalVelocity_x * -1;
 				agent->vy = tangentVelocity_y + normalVelocity_y * -1;
-				agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
+				agent->velocity_ms = 112.f; //sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
 				//printf("New values vx:%f vy:%f x:%f y:%f\n", agent->vx, agent->vy, agent->x, agent->y);
 			}
 			// collision at the boundaries
-			else if (abs(vlength(ballp1_x, ballp1_y)) < agent->radius_um) {
-				// bouce off endpoint wall_p1
-				float distp_x = agent->x - ballp1_x;
-				float distp_y = agent->y - ballp1_y;
+			else if (abs(vlength(ev_p1x, ev_p1y)) < agent->radius_um) {
+				// bounce off endpoint wall_p1
+				float distp_x = agent->x - ev_p1x;
+				float distp_y = agent->y - ev_p1y;
 				//var distp = obj.pos2D.subtract(pEndpoint);
 				//// move particle so that it just touches the endpoint			
 				//var L = obj.radius - distp.length();
@@ -339,14 +318,14 @@ __FLAME_GPU_FUNC__ int cell_collision_resolution(xmachine_memory_EV* agent, xmac
 				//obj.velo2D = normalVelo.add(tangentVelo);
 				agent->vx = normalVelo + tangentVelo_x;
 				agent->vy = normalVelo + tangentVelo_y;
-				agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
+				agent->velocity_ms = 113; // sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
 				//printf("Collision with boundary p1\n");
 			}
-			else if (abs(vlength(ballp2_x, ballp2_y)) < agent->radius_um) {
+			else if (abs(vlength(ev_p2x, ev_p2y)) < agent->radius_um) {
 				// bouce off endpoint wall_p2
 
-				float distp_x = agent->x - ballp2_x;
-				float distp_y = agent->y - ballp2_y;
+				float distp_x = agent->x - ev_p2x;
+				float distp_y = agent->y - ev_p2y;
 				//var distp = obj.pos2D.subtract(pEndpoint);
 				//// move particle so that it just touches the endpoint			
 				//var L = obj.radius - distp.length();
@@ -371,18 +350,18 @@ __FLAME_GPU_FUNC__ int cell_collision_resolution(xmachine_memory_EV* agent, xmac
 				//obj.velo2D = normalVelo.add(tangentVelo);
 				agent->vx = normalVelo + tangentVelo_x;
 				agent->vy = normalVelo + tangentVelo_y;
-				agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
+				agent->velocity_ms = 114.f; // sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
 				//printf("Collision with boundary p2\n");
 			}
 			// no collision occurred
 		}
-		message = get_next_cell_collision_message(message, cell_collision_messages);
+		message = get_next_secretory_cell_collision_message(message, secretory_cell_collision_messages);
 	}
 	return 0;
 }
 
 /**
-This function resolves a single collision between an EV and a cell
+This function resolves a single collision between an EV and a ciliary cell
 After this, the EV has new values for x, y, vx, and vy, compensated for the collision
 */
 __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* agent, xmachine_message_ciliary_cell_collision_list* ciliary_cell_collision_messages) {
@@ -392,71 +371,51 @@ __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* age
 	while (message) {
 		// we verify the ev_id in the message matches this agent's id
 		if (message->ev_id == agent->id) {
-			//printf("================ collision checking for agent %d and wall %d =================\n", agent->id, message->cell_id);
-			// vector along wall/cell
-			float cellDir_x = message->p2_x - message->p1_x;
-			float cellDir_y = message->p2_y - message->p1_y;
-			float cellDir_len = vlength(cellDir_x, cellDir_y);
-			float cellDir_x_unit = cellDir_x / cellDir_len;
-			float cellDir_y_unit = cellDir_y / cellDir_len;
-
-
-			//printf("cell dir x:%f y:%f\n", cellDir_x, cellDir_y);
-			// vectors from ball to endpoints of wall
+			// collision checking for this pair of agent and wall segment
+			
+			// we compute the vectors from ev_agent to the wall endpoints
 			// var ballp1 = wall.p1.subtract(obj.pos2D);
-			float ballp1_x = message->p1_x - agent->x;
-			float ballp1_y = message->p1_y - agent->y;
-			float ballp2_x = message->p2_x - agent->x;
-			float ballp2_y = message->p2_y - agent->y;
-			//printf("ballp1 x:%f y:%f message->p1 x:%f y:%f\n", ballp1_x, ballp1_y, message->p1_x, message->p1_y);
+			float ev_p1x = message->p1_x - agent->x;
+			float ev_p1y = message->p1_y - agent->y;
+			float ev_p2x = message->p2_x - agent->x;
+			float ev_p2y = message->p2_y - agent->y;
 
-			// projection of above vectors onto wall vector
-			float proj1 = projection(ballp1_x, ballp1_y, cellDir_x, cellDir_y);
-			float proj2 = projection(ballp2_x, ballp2_y, cellDir_x, cellDir_y);
-			//printf("projection1:%f\n", proj1);
+			// projection of the above vectors onto wall vector
+			float proj1 = projection(ev_p1x, ev_p1y, message->cell_direction_x, message->cell_direction_y);
+			float proj2 = projection(ev_p2x, ev_p2y, message->cell_direction_x, message->cell_direction_y);
 
 			// Perpendicular distance vector from the object to the wall
 			// var dist = ballp1.addScaled(wdir.unit(), proj1*(-1));
-			// needs the cell direction unit vector
-			// float2 dist = ballp1 + (cellDir / length(cellDir)) * proj1 * -1;
-			
-			//printf("cellDir_unit x:%f, y:%f\n", cellDir_x_unit, cellDir_y_unit);
-			float dist_x = ballp1_x + (proj1 * -1) * cellDir_x_unit;  // <- distance to compensate
-			float dist_y = ballp1_y + (proj1 * -1) * cellDir_y_unit;
+			float dist_x = ev_p1x + message->cell_direction_x_unit * (proj1 * -1.f);  // <- distance to compensate
+			float dist_y = ev_p1y + message->cell_direction_y_unit * (proj1 * -1.f);
 
 			// collision detection
 			//var test = ((Math.abs(proj1) < wdir.length()) && (Math.abs(proj2) < wdir.length()));
-			
-			bool test = (abs(proj1) < cellDir_len) && (abs(proj2) < cellDir_len);
+			bool test = (abs(proj1) < message->cell_direction_length) && (abs(proj2) < message->cell_direction_length);
+			agent->velocity_ms = 511.f;
 			if ((vlength(dist_x, dist_y) < agent->radius_um) && test)
 			{
 				//printf("Current values vx:%f vy:%f x:%f y:%f\n", agent->vx, agent->vy, agent->x, agent->y);
 				// 1. angle between velocity and wall 
-				float angle = acosf(dotprod(agent->vx, agent->vy, cellDir_x, cellDir_y) / (vlength(agent->vx, agent->vy) * cellDir_len));
+				float angle = acosf(dotprod(agent->vx, agent->vy, message->cell_direction_x, message->cell_direction_y) / (vlength(agent->vx, agent->vy) * message->cell_direction_length));
 				//printf("angle: %f\n", angle);
 
 				// 2. reposition object
-				// var normal = wall.normal;
 				// 2a compute the perpendicular to the cell
-				float normal_x = perpendicular(cellDir_x, cellDir_y, cellDir_len, 0);
-				float normal_y = perpendicular(cellDir_x, cellDir_y, cellDir_len, 1);
-				//printf("wall normal x:%f y:%f\n", normal_x, normal_y);
-				// 2b scale the normal by -1 if needed
+				//float normal_x = perpendicular(message->cell_direction_x, message->cell_direction_y, message->cell_direction_length, 0);
+				//float normal_y = perpendicular(message->cell_direction_x, message->cell_direction_y, message->cell_direction_length, 1);
+				float normal_x = message->unit_normal_x;
+				float normal_y = message->unit_normal_y;
+				// 2b scale the normal by -1 if needed (needed by walls constructed using the binormal instead of the normal)
 				float d = dotprod(normal_x, normal_y, agent->vx, agent->vy);
-				if (d > 0) {
-					normal_x *= -1;
-					normal_y *= -1;
-					//printf("d > 0 wall with wrong normal?? \n");
-				}
+				if (d > 0) { normal_x *= -1.0; normal_y *= -1.0; }
 
 				// 3. compute deltaS
 				// var deltaS = (obj.radius + dist.dotProduct(normal)) / Math.sin(angle);
 				float deltaS = (agent->radius_um + dotprod(dist_x, dist_y, normal_x, normal_y)) / sin(angle);
-				//printf("distx:%f disty:%f, deltaS:%f\n", dist_x, dist_y, deltaS);
 
 				// 4. estimate what was the displacement = velocity parallel to delta
 				// var displ = obj.velo2D.para(deltaS);
-				// float2 displ = parallel(velocity, deltaS); <- parallel: return obj * (u / length(obj));
 				float displ_x = parallel(agent->vx, agent->vy, deltaS, 0);
 				float displ_y = parallel(agent->vx, agent->vy, deltaS, 1);
 
@@ -467,49 +426,40 @@ __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* age
 
 				// velocity correction factor
 				//var vcor = 1-acc.dotProduct(displ)/obj.velo2D.lengthSquared();
-				// our simulation uses zero acceleration
 				//float numerator = dotprod(0, 0, displ_x, displ_y);
 				//float sqr_vel = (agent->vx * agent->vx + agent->vy*agent->vy);
 				//float vfrac = numerator / sqr_vel;
 				//float vcor = 1 - vfrac;
 
-				//printf("displx:%f disply:%f numerator:%f sqr_vel:%f vfrac:%f vcor:%f\n", displ_x, displ_y, numerator, sqr_vel, vfrac, vcor);
 				// corrected velocity vector just before impact 
 				// var Velo = obj.velo2D.multiply(vcor)
 				float new_velocity_x = agent->vx;// *1;
 				float new_velocity_y = agent->vy;// *1;
-				//printf("newVelocity x:%f y:%f\n", new_velocity_x, new_velocity_y);
 
 				// 6. decompose the velocity
 				// velocity vector component perpendicular to wall just before impact
 				// var normalVelo = dist.para(Velo.projection(dist));
-				// float2 normalVelocity = parallel(dist, projection(velocity, dist));
 				float velocityProjection = projection(new_velocity_x, new_velocity_y, dist_x, dist_y);
 				float normalVelocity_x = parallel(dist_x, dist_y, velocityProjection, 0);
 				float normalVelocity_y = parallel(dist_x, dist_y, velocityProjection, 1);
-				//printf("velocityProjection:%f normalVelocity_x:%f normalVelocity_y:%f\n", velocityProjection, normalVelocity_x, normalVelocity_y);
 
 				// velocity vector component parallel to wall; unchanged by impact
 				// var tangentVelo = Velo.subtract(normalVelo);
-				// float2 tangentVelocity = velocity - normalVelocity;
 				float tangentVelocity_x = new_velocity_x - normalVelocity_x;
 				float tangentVelocity_y = new_velocity_y - normalVelocity_y;
-				//printf("tangentVelocity_x:%f tangentVelocity_y:%f\n", tangentVelocity_x, tangentVelocity_y);
 
 				// velocity vector component perpendicular to wall just after impact
 				// obj.velo2D = tangentVelo.addScaled(normalVelo, -vfac);
-				//float2 newVelocity = tangentVelocity + normalVelocity * -1;
-
 				agent->vx = tangentVelocity_x + normalVelocity_x * -1;
 				agent->vy = tangentVelocity_y + normalVelocity_y * -1;
-				agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
-				//printf("New values vx:%f vy:%f x:%f y:%f\n", agent->vx, agent->vy, agent->x, agent->y);
+				agent->velocity_ms = 512.f; //sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
 			}
 			// collision at the boundaries
-			else if (abs(vlength(ballp1_x, ballp1_y)) < agent->radius_um) {
+			else if (abs(vlength(ev_p1x, ev_p1y)) < agent->radius_um) {
+				// SEEMS TO WORK OK
 				// bouce off endpoint wall_p1
-				float distp_x = agent->x - ballp1_x;
-				float distp_y = agent->y - ballp1_y;
+				float distp_x = agent->x - ev_p1x;
+				float distp_y = agent->y - ev_p1y;
 				//var distp = obj.pos2D.subtract(pEndpoint);
 				//// move particle so that it just touches the endpoint			
 				//var L = obj.radius - distp.length();
@@ -534,14 +484,14 @@ __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* age
 				//obj.velo2D = normalVelo.add(tangentVelo);
 				agent->vx = normalVelo + tangentVelo_x;
 				agent->vy = normalVelo + tangentVelo_y;
-				agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
+				agent->velocity_ms = 513.f; // sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
 				//printf("Collision with boundary p1\n");
 			}
-			else if (abs(vlength(ballp2_x, ballp2_y)) < agent->radius_um) {
+			else if (abs(vlength(ev_p2x, ev_p2y)) < agent->radius_um) {
 				// bouce off endpoint wall_p2
 
-				float distp_x = agent->x - ballp2_x;
-				float distp_y = agent->y - ballp2_y;
+				float distp_x = agent->x - ev_p2x;
+				float distp_y = agent->y - ev_p2y;
 				//var distp = obj.pos2D.subtract(pEndpoint);
 				//// move particle so that it just touches the endpoint			
 				//var L = obj.radius - distp.length();
@@ -566,7 +516,7 @@ __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* age
 				//obj.velo2D = normalVelo.add(tangentVelo);
 				agent->vx = normalVelo + tangentVelo_x;
 				agent->vy = normalVelo + tangentVelo_y;
-				agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
+				agent->velocity_ms = 514.f; // sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
 				//printf("Collision with boundary p2\n");
 			}
 			// no collision occurred
@@ -577,30 +527,39 @@ __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* age
 }
 
 /**
-let's call our point p0 and the points that define the line as p1 and p2.
-Then you get the vectors A = p0 - p1 and B = p2 - p1.Param is the scalar value
-that when multiplied to B gives you the point on the line closest to p0.
-Modified from https ://stackoverflow.com/a/6853926/3830240
-returns
-would_intersect
-distance b / w intersection point and p0
-coordinates of intersection point
+Computes the distance between a point (p0) and the segment of a line with end points (p1) and (p2).
+We get the vectors A = p0 - p1 and B = p2 - p1. 
+-param- is the scalar value that when multiplied by B gives you the point on the line closest to p0.
+A collision is only possible if the point is projecting on the segment. Otherwise, the agent may be 
+in collision with another segment first.
+Modified from https://stackoverflow.com/a/6853926/3830240
+
+Returns
+float4 where:
+	x - 1 if the point is projecting on the segment, 0 otherwise
+	y - distance from the closest point on the segment to the EV position
+	z - x coordinate of the closest point from the segment to the EV
+	w - y coordinate of the closest point from the segment to the EV
 */
 __device__ float4 point_to_line_segment_distance(float x, float y, float x1, float y1, float x2, float y2)
 {
+	float4 result;
+
+	// vector components from point to one of the end points of the line segment
 	float A = x - x1;
 	float B = y - y1;
+	// vector components of the line segment
 	float C = x2 - x1;
 	float D = y2 - y1;
 
-	float dot = A * C + B * D;
-	float len_sq = C * C + D * D;
+	float dot = A * C + B * D; // vector projection
+	float len_sq = C * C + D * D; // sqrd magnitude of the line segment
 	float param = -1;
-	bool intersecting = false;
 	float xx = 0.f, yy = 0.f, dx, dy;
+	float projecting_on_segment = 0.0f;
 
 	if (len_sq != 0){ // in case of 0 length line
-		param = dot / len_sq;
+		param = dot / len_sq; // ratio of the projected vectors over the length of the line segment
 	}
 	
 	if (param < 0){ // the closest point is p1, point not projecting on segment
@@ -611,8 +570,9 @@ __device__ float4 point_to_line_segment_distance(float x, float y, float x1, flo
 		xx = x2;
 		yy = y2;
 	}
-	else{   // interpolate to find the closes point on the line segment
-		intersecting = true;
+	else {   // the point is projecting on the segment
+		// interpolate to find the closes point on the line segment
+		projecting_on_segment = 1.0f;
 		xx = x1 + param * C;
 		yy = y1 + param * D;
 	}
@@ -620,9 +580,9 @@ __device__ float4 point_to_line_segment_distance(float x, float y, float x1, flo
 	// dx / dy is the vector from p0 to the closest point on the segment
 	dx = x - xx;
 	dy = y - yy;
-	float4 result;
-	result.x = (intersecting ? 1.f : 0.f);
-	result.y = sqrt(dx * dx + dy * dy);
+
+	result.x = projecting_on_segment;
+	result.y = sqrt(dx * dx + dy * dy); // distance between p
 	result.z = xx;
 	result.w = yy;
 	
@@ -631,66 +591,66 @@ __device__ float4 point_to_line_segment_distance(float x, float y, float x1, flo
 
 /**
 Checks any possible collision with the secretory cells on the boundaries. 
-If there is an occurrence, a collision_message is generated with the following parameters:
-	ev_id = the id of the current EV
-	closest_cell - id of the cell the collision occurs with
-	closest_cell_distance
-	collision_point_x
-	collision_point_y
-	angle of the wall
-When no collision is detected, the ev agent will have the values:
-	agent->closest_cell_id = -1;
-	agent->closest_cell_distance = -1.0f;
+If a collision occurred, a collision_message is generated and the agent will have the values:
+	agent->closest_secretory_cell_id = closest_cell_id;
+	agent->closest_secretory_cell_distance = closest_cell_distance;
+Otherwise, no message is produced and the ev agent will have the default values unchanged:
+	agent->closest_secretory_cell_id = -1;
+	agent->closest_secretory_cell_distance = -1.0f;
 */
 __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, xmachine_message_secretory_cell_location_list* location_messages,
-	xmachine_message_secretory_cell_location_PBM* partition_matrix, xmachine_message_cell_collision_list* cell_collision_messages)
+	xmachine_message_secretory_cell_location_PBM* partition_matrix, xmachine_message_secretory_cell_collision_list* secretory_cell_collision_messages)
 {
 	int closest_cell = -1;
-	float closest_cell_distance = 10000.f;
+	float closest_cell_distance = 100.f;
 	float3 closest;
 	float4 res;
-	float2 direction;
-	float4 cell_pts;
+	float4 wall_direction;
+	float4 wall_normal;
+	float4 wall_pts;
+	float wall_direction_length, wall_normal_length;
 
 	xmachine_message_secretory_cell_location* message = get_first_secretory_cell_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
 	while (message) {
-		// get the distance between agent and cell
-		res = point_to_line_segment_distance(agent->x, agent->y, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
+		// we only check for collisions if the EV is displacing in the same direction as the wall
+		float dotProduct = dotprod(agent->vx, agent->vy, message->unit_normal_x, message->unit_normal_y);
 
-		// if the ev is in collision route and the distance to segment < radius
-		if (res.x > 0.f && res.y < agent->radius_um)
-		{
-			//printf("secretory res.x: %f res.y:%f radius_um:%f\n", res.x, res.y, agent->radius_um);
-			if (closest_cell == -1) // save the reference if this is the first candidate collision
+		if (dotProduct < 0) {
+			// get the distance between an agent's new position and a cell
+			res = point_to_line_segment_distance(agent->x, agent->y, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
+
+			// if the ev new position is projecting over the segment and the distance to the segment < radius
+			if (res.x == 1.0f && res.y < agent->radius_um)
 			{
-				closest_cell = message->id;
-				closest_cell_distance = res.y;
-				closest.x = res.z;
-				closest.y = res.w;
-				//closest.z = message->angle; //get_boundary_angle(offset_angles[agent->sec] + i);
-				direction.x = message->direction_x;
-				direction.y = message->direction_y;
+				//printf("secretory res.x: %f res.y:%f radius_um:%f\n", res.x, res.y, agent->radius_um);
+				if (res.y < closest_cell_distance)
+				{
+					closest_cell = message->id;
+					closest_cell_distance = res.y;
+					closest.x = res.z;
+					closest.y = res.w;
+					//closest.z = message->angle; //get_boundary_angle(offset_angles[agent->sec] + i);
+					// wall direction values
+					wall_direction.x = message->direction_x;
+					wall_direction.y = message->direction_y;
+					// wall direction unit values
+					wall_direction.z = message->direction_x_unit;
+					wall_direction.w = message->direction_y_unit;
+					wall_direction_length = message->direction_length;
+					// wall normal values
+					wall_normal.x = message->normal_x;
+					wall_normal.y = message->normal_y;
+					// wall unit normal values
+					wall_normal.z = message->unit_normal_x;
+					wall_normal.w = message->unit_normal_y;
+					wall_normal_length = message->normal_length;
 
-				cell_pts.x = message->p1_x;
-				cell_pts.y = message->p1_y;
-				cell_pts.z = message->p2_x;
-				cell_pts.w = message->p2_y;
-			}
-			else if (res.y < closest_cell_distance) {
-				//		// otherwise only save the reference if this collision takes precedence
-				closest_cell = message->id;
-				closest_cell_distance = res.y;
-				closest.x = res.z;
-				closest.y = res.w;
-				//closest.z = message->angle; //get_boundary_angle(offset_angles[agent->sec] + i);
-				direction.x = message->direction_x;
-				direction.y = message->direction_y;
-
-				cell_pts.x = message->p1_x;
-				cell_pts.y = message->p1_y;
-				cell_pts.z = message->p2_x;
-				cell_pts.w = message->p2_y;
+					wall_pts.x = message->p1_x;
+					wall_pts.y = message->p1_y;
+					wall_pts.z = message->p2_x;
+					wall_pts.w = message->p2_y;
+				}
 			}
 		}
 
@@ -698,49 +658,113 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 		message = get_next_secretory_cell_location_message(message, location_messages, partition_matrix);
 	}
 
-	if (closest_cell > -1){
-		//printf("collision detected with secretory cell:%d at:%f\n", closest_cell, closest_cell_distance);
-		agent->closest_cell_id = closest_cell;
-		agent->closest_cell_distance = closest_cell_distance;
+	if (closest_cell > -1) { // a collision was detected
+		// we store the reference in the agent for future comparisons
+		agent->closest_secretory_cell_id = closest_cell;
+		agent->closest_secretory_cell_distance = closest_cell_distance;
 		// write the corresponding collision_message
-		add_cell_collision_message(cell_collision_messages, agent->id, closest_cell, closest_cell_distance,
-			cell_pts.x, cell_pts.y, cell_pts.z, cell_pts.w, direction.x, direction.y);
+		add_secretory_cell_collision_message(secretory_cell_collision_messages, agent->id,
+			agent->closest_secretory_cell_id, agent->closest_secretory_cell_distance,
+			wall_pts.x, wall_pts.y, wall_pts.z, wall_pts.w, wall_direction.x, wall_direction.y,
+			wall_direction.z, wall_direction.w, wall_direction_length,
+			wall_normal.x, wall_normal.y, wall_normal.z, wall_normal.w, wall_normal_length);
 	}
 	return 0;
 }
 
-/**
-Checks any possible collision with the secretory cells on the boundaries.
-If there is an occurrence, a collision_message is generated with the following parameters:
-	ev_id = the id of the current EV
-	closest_cell - id of the cell the collision occurs with
-	closest_cell_distance
-	collision_point_x
-	collision_point_y
-	angle of the wall
-When no collision is detected, the ev agent will not have its values overwriten
-*/
-__FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xmachine_message_ciliary_cell_location_list* location_messages,
-	xmachine_message_ciliary_cell_location_PBM* partition_matrix, xmachine_message_ciliary_cell_collision_list* ciliary_cell_collision_messages)
+/*
+//Given three colinear points p, q, r, the function checks if
+//point q lies on line segment 'pr'
+//if (q.x <= max(p.x, r.x) && q.x >= min(p.x, r.x) && q.y <= max(p.y, r.y) && q.y >= min(p.y, r.y))
+//return true;
+//return false;
+__device__ int on_segment(float p_x, float p_y, float q_x, float q_y, float r_x, float r_y) {
+	if (q_x <= max(p_x, r_x) && q_x >= min(p_x, r_x) && q_y <= max(p_y, r_y) && q_y >= min(p_y, r_y))
+		return 1;
+	return 0;
+}
+
+
+// To find orientation of ordered triplet (p, q, r).
+// The function returns following values
+// 0 --> p, q and r are colinear
+// 1 --> Clockwise
+// 2 --> Counterclockwise
+__device__ int orientation(float p_x, float p_y, float q_x, float q_y, float r_x, float r_y)
+{
+	// See https://www.geeksforgeeks.org/orientation-3-ordered-points/ 
+	// for details of below formula. 
+	int val = (q_y - p_y) * (r_x - q_x) - (q_x - p_x) * (r_y - q_y);
+
+	if (val == 0) return 0;  // colinear 
+
+	return (val > 0) ? 1 : 2; // clock or counterclock wise 
+}
+
+// The main function that returns true if line segment 'p1q1'
+// and 'p2q2' intersect.
+// Adapted from:
+// https://www.geeksforgeeks.org/check-if-two-given-line-segments-intersect/
+__device__ bool segments_intersect(float p1_x, float p1_y, float q1_x, float q1_y, float p2_x, float p2_y, float q2_x, float q2_y)
+{
+	// Find the four orientations needed for general and 
+	// special cases 
+	int o1 = orientation(p1_x, p1_y, q1_x, q1_y, p2_x, p2_y);
+	int o2 = orientation(p1_x, p1_y, q1_x, q1_y, q2_x, q2_y);
+	int o3 = orientation(p2_x, p2_y, q2_x, q2_y, p1_x, p1_y);
+	int o4 = orientation(p2_x, p2_y, q2_x, q2_y, q1_x, q1_y);
+
+	// General case 
+	if (o1 != o2 && o3 != o4)
+		return true;
+
+	// Special Cases 
+	// p1, q1 and p2 are colinear and p2 lies on segment p1q1 
+	if (o1 == 0 && onSegment(p1, p2, q1)) return true;
+
+	// p1, q1 and q2 are colinear and q2 lies on segment p1q1 
+	if (o2 == 0 && onSegment(p1, q2, q1)) return true;
+
+	// p2, q2 and p1 are colinear and p1 lies on segment p2q2 
+	if (o3 == 0 && onSegment(p2, p1, q2)) return true;
+
+	// p2, q2 and q1 are colinear and q1 lies on segment p2q2 
+	if (o4 == 0 && onSegment(p2, q1, q2)) return true;
+
+	return false; // Doesn't fall in any of the above cases 
+}
+
+// this check works if we check for collisions in the past. 
+// i.e.: we first displace the ev, then check for collisions and solve them, then we persist the state of the system
+__FLAME_GPU_FUNC__ int test_secretory_cell_collision_v2(xmachine_memory_EV* agent, xmachine_message_secretory_cell_location_list* location_messages,
+	xmachine_message_secretory_cell_location_PBM* partition_matrix, xmachine_message_secretory_cell_collision_list* secretory_cell_collision_messages)
 {
 	int closest_cell = -1;
 	float closest_cell_distance = 10000.f;
 	float3 closest;
 	float4 res;
-	float2 direction;
+	float4 direction;
 	float4 cell_pts;
+	float direction_length;
 
-	xmachine_message_ciliary_cell_location* message = get_first_ciliary_cell_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
+	xmachine_message_secretory_cell_location* message = get_first_secretory_cell_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
 	while (message) {
-		// get the distance between agent and cell
-		res = point_to_line_segment_distance(agent->x, agent->y, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
+		// 1. check if the displacement vector intersects with the wall/cell vector
+		bool intersection = segments_intersect(agent->x_1, agent->y_1, agent->x, agent->y, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
+		// 2. if they intersect, we need to identify at what time they intersect.
+		// Collisions must be resolved in order, on a first occurred - first solved basis.
+		if (intersection) {
 
-		// if the ev is in collision route and the distance to segment < radius
-		if (res.x > 0.f && res.y < agent->radius_um)
-		{
-			//printf("ciliary res.x: %f res.y:%f radius_um:%f\n", res.x, res.y, agent->radius_um);
-			if (closest_cell == -1) // save the reference if this is the first candidate collision
+		}
+		else {
+			point_to_line_segment_distance(agent->x, agent->y, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
+
+		}
+
+
+			//printf("secretory res.x: %f res.y:%f radius_um:%f\n", res.x, res.y, agent->radius_um);
+			if (closest_cell == -1 || (closest_cell > -1 && res.y < closest_cell_distance)) // save the reference if this is the first candidate collision
 			{
 				closest_cell = message->id;
 				closest_cell_distance = res.y;
@@ -749,56 +773,115 @@ __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xm
 				//closest.z = message->angle; //get_boundary_angle(offset_angles[agent->sec] + i);
 				direction.x = message->direction_x;
 				direction.y = message->direction_y;
+				// direction unit values
+				direction.z = message->direction_x_unit;
+				direction.w = message->direction_y_unit;
+				direction_length = message->direction_length;
 
 				cell_pts.x = message->p1_x;
 				cell_pts.y = message->p1_y;
 				cell_pts.z = message->p2_x;
 				cell_pts.w = message->p2_y;
 			}
-			else if (res.y < closest_cell_distance) {
-				//		// otherwise only save the reference if this collision takes precedence
-				closest_cell = message->id;
-				closest_cell_distance = res.y;
-				closest.x = res.z;
-				closest.y = res.w;
-				//closest.z = message->angle; //get_boundary_angle(offset_angles[agent->sec] + i);
-				direction.x = message->direction_x;
-				direction.y = message->direction_y;
 
-				cell_pts.x = message->p1_x;
-				cell_pts.y = message->p1_y;
-				cell_pts.z = message->p2_x;
-				cell_pts.w = message->p2_y;
+		// get the next message
+		message = get_next_secretory_cell_location_message(message, location_messages, partition_matrix);
+	}
+
+	if (closest_cell > -1) { // a collision was detected
+							 // we store the reference in the agent for future comparisons
+		agent->closest_secretory_cell_id = closest_cell;
+		agent->closest_secretory_cell_distance = closest_cell_distance;
+		// write the corresponding collision_message
+		add_secretory_cell_collision_message(secretory_cell_collision_messages, agent->id,
+			agent->closest_secretory_cell_id, agent->closest_secretory_cell_distance,
+			cell_pts.x, cell_pts.y, cell_pts.z, cell_pts.w, direction.x, direction.y,
+			direction.z, direction.w, direction_length);
+	}
+	return 0;
+}
+*/
+
+/**
+Checks any possible collision with the secretory cells on the boundaries.
+If a collision occurred, a collision_message is generated and the agent will have the values:
+	agent->closest_ciliary_cell_id = closest_cell_id;
+	agent->closest_ciliary_cell_distance = closest_cell_distance;
+Otherwise, no message is produced and the ev agent will have the default values unchanged:
+	agent->closest_ciliary_cell_id = -1;
+	agent->closest_ciliary_cell_distance = -1.0f;
+*/
+__FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xmachine_message_ciliary_cell_location_list* location_messages,
+	xmachine_message_ciliary_cell_location_PBM* partition_matrix, xmachine_message_ciliary_cell_collision_list* ciliary_cell_collision_messages)
+{
+	int closest_cell = -1;
+	float closest_cell_distance = 100.f;
+	float3 closest;
+	float4 res;
+	float4 wall_direction;
+	float4 wall_normal;
+	float4 wall_pts;
+	float wall_direction_length, wall_normal_length;
+
+	xmachine_message_ciliary_cell_location* message = get_first_ciliary_cell_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
+
+	while (message) {
+		// we only check for collisions if the EV is displacing in the same direction as the wall
+		float dotProduct = dotprod(agent->vx, agent->vy, message->unit_normal_x, message->unit_normal_y);
+
+		// the dot product will only be negative for vectors in opposite directions
+		if (dotProduct < 0) {
+			// get the distance between agent and cell
+			res = point_to_line_segment_distance(agent->x, agent->y, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
+
+			// if the ev is in collision route and the distance to segment < radius
+			if (res.x == 1.0f && res.y < agent->radius_um)
+			{
+				//printf("ciliary res.x: %f res.y:%f radius_um:%f\n", res.x, res.y, agent->radius_um);
+				// save the reference if this is the first candidate collision
+				// or if the agent is closer to the wall than the previous collision
+				if (res.y < closest_cell_distance)
+				{
+					closest_cell = message->id;
+					closest_cell_distance = res.y;
+					closest.x = res.z;
+					closest.y = res.w;
+					//closest.z = message->angle; //get_boundary_angle(offset_angles[agent->sec] + i);
+					// wall direction values
+					wall_direction.x = message->direction_x;
+					wall_direction.y = message->direction_y;
+					// wall direction unit values
+					wall_direction.z = message->direction_x_unit;
+					wall_direction.w = message->direction_y_unit;
+					wall_direction_length = message->direction_length;
+					// wall normal values
+					wall_normal.x = message->normal_x;
+					wall_normal.y = message->normal_y;
+					// wall unit normal values
+					wall_normal.z = message->unit_normal_x;
+					wall_normal.w = message->unit_normal_y;
+					wall_normal_length = message->normal_length;
+
+					wall_pts.x = message->p1_x;
+					wall_pts.y = message->p1_y;
+					wall_pts.z = message->p2_x;
+					wall_pts.w = message->p2_y;
+				}
 			}
 		}
 		message = get_next_ciliary_cell_location_message(message, location_messages, partition_matrix);
 	}
 	
-	if (closest_cell > -1) {
-		if (agent->closest_cell_id > -1.f) {
-			if (closest_cell_distance < agent->closest_cell_distance) {
-				//printf("collision detected with ciliary cell:%d at:%f occurs before the collision with the secretory cell\n", closest_cell, closest_cell_distance);
-				// agent is closest to this ciliary cell than any secretory cell
-				agent->closest_cell_id = closest_cell;
-				agent->closest_cell_distance = closest_cell_distance;
-
-				// write the corresponding collision_message
-				add_ciliary_cell_collision_message(ciliary_cell_collision_messages, agent->id, closest_cell, closest_cell_distance,
-					cell_pts.x, cell_pts.y, cell_pts.z, cell_pts.w, direction.x, direction.y);
-			}
-			else {
-				// agent is closest to a secretory cell
-			}
-		}
-		else {
-			//printf("collision detected with ciliary cell:%d at:%f with no previous collition with a secretory cell\n", closest_cell, closest_cell_distance);
-			// agent is closest to the detected ciliary cell
-			agent->closest_cell_id = closest_cell;
-			agent->closest_cell_distance = closest_cell_distance;
-			// write the corresponding collision_message
-			add_ciliary_cell_collision_message(ciliary_cell_collision_messages, agent->id, closest_cell, closest_cell_distance,
-				cell_pts.x, cell_pts.y, cell_pts.z, cell_pts.w, direction.x, direction.y);
-		}
+	if (closest_cell > -1) { // a collision was detected
+		// agent is closest to the detected ciliary cell
+		agent->closest_ciliary_cell_id = closest_cell;
+		agent->closest_ciliary_cell_distance = closest_cell_distance;
+		// write the corresponding collision_message
+		add_ciliary_cell_collision_message(ciliary_cell_collision_messages, agent->id, 
+			agent->closest_ciliary_cell_id, agent->closest_ciliary_cell_distance,
+			wall_pts.x, wall_pts.y, wall_pts.z, wall_pts.w, wall_direction.x, wall_direction.y,
+			wall_direction.z, wall_direction.w, wall_direction_length,
+			wall_normal.x, wall_normal.y, wall_normal.z, wall_normal.w, wall_normal_length);
 	}
 	return 0;
 }
@@ -920,13 +1003,17 @@ __FLAME_GPU_FUNC__ int ev_collision_resolution(xmachine_memory_EV* agent, xmachi
 		}
 		message = get_next_ev_collision_message(message, ev_collision_messages);
 	}
-
-	
 	return 0;
 }
 
 /**
-Identifies the first collision occuring with another EV and records in the current EV the id of the colliding EV the collision distance
+Checks any possible collision with another EV
+If a collision occurred, a collision_message is generated and the agent will have the values:
+	agent->closest_ev_id = closest_ev_id;
+	agent->closest_ev_distance = closest_ev_distance;
+Otherwise, no message is produced and the ev agent will have the default values unchanged:
+	agent->closest_ev_id = -1;
+	agent->closest_ev_distance = -1.0f;
 */	
 __FLAME_GPU_FUNC__ int test_ev_collision(xmachine_memory_EV* agent, xmachine_message_location_list* location_messages, 
 	xmachine_message_location_PBM* partition_matrix, xmachine_message_ev_collision_list* ev_collision_messages){
@@ -984,27 +1071,17 @@ __FLAME_GPU_FUNC__ int test_ev_collision(xmachine_memory_EV* agent, xmachine_mes
 		add_ev_collision_message(ev_collision_messages, agent->id, closest_ev_id, closest_ev_distance, 
 			agent->mass_kg, agent->radius_um, agent->x, agent->y, agent->vx, agent->vy, 
 			ev2_mass, ev2_r_um, ev2_x, ev2_y, ev2_vx, ev2_vy);
-	} else {
-		agent->closest_ev_id = -1;
-		agent->closest_ev_distance = -1.0f;
 	}
 	return 0;
 }
 
 __FLAME_GPU_FUNC__ int reset_state(xmachine_memory_EV* agent) {
-	return 0;
-}
-
-__FLAME_GPU_FUNC__ int brownian_movement_1d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
-	float u1, u2, r, theta;
-
-	u1 = rnd<CONTINUOUS>(rand48);
-	u2 = rnd<CONTINUOUS>(rand48);
-	r = sqrt(-2.0 * log(u1));
-	theta = 2 * M_PI * u2;
-
-	// the product of r * (cos|sin)(theta) becomes the displacement factor to use in this iteration
-	agent->vx = agent->velocity_ums * r * cos(theta);
+	agent->closest_ciliary_cell_id = -1;
+	agent->closest_ciliary_cell_distance = 100;
+	agent->closest_secretory_cell_id = -1;
+	agent->closest_secretory_cell_distance = 100;
+	agent->closest_ev_id = -1;
+	agent->closest_ev_distance = 100;
 
 	return 0;
 }
@@ -1012,20 +1089,46 @@ __FLAME_GPU_FUNC__ int brownian_movement_1d(xmachine_memory_EV* agent, RNG_rand4
 /*
 Uses the Box-Mueller transform to generate a pair of normally distributed random numbers
 by sampling from two uniformly distributed RNG.
-Then, the values are transformed into cartesian coordinates.
+In the original algorithm, the sampled values are transformed into cartesian coordinates,
+here they become the new velocity for the next step
+Due to limitations in FlameGPU, we sample both continuos numbers from the same RNG.
+*/
+__FLAME_GPU_FUNC__ int brownian_movement_1d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
+	float u1, u2, r, theta;
+	if (agent->age > dt * 600) {
+		u1 = rnd<CONTINUOUS>(rand48);
+		u2 = rnd<CONTINUOUS>(rand48);
+		r = sqrt(-2.0 * log(u1));
+		theta = 2 * M_PI * u2;
+		// the product of r * (cos|sin)(theta) becomes the displacement factor to use in this iteration
+		agent->vx = agent->velocity_ums * r * cos(theta);
+	}
+	//agent->vx = agent->vx;
+	//agent->vy = agent->vy;
+	return 0;
+}
+
+/*
+Uses the Box-Mueller transform to generate a pair of normally distributed random numbers
+by sampling from two uniformly distributed RNG.
+In the original algorithm, the sampled values are transformed into cartesian coordinates, 
+here they become the new velocity for the next step.
+After secretion, the EV displaces balistically for < 600 iterations, no brownian motion is computed in this case
 Due to limitations in FlameGPU, we sample both continuos numbers from the same RNG.
 */
 __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
 	float u1, u2, fac, rsq, r, theta; 
-	
+	if (agent->age > dt * 6000) {
 		u1 = rnd<CONTINUOUS>(rand48);
 		u2 = rnd<CONTINUOUS>(rand48);
 		// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
 		r = sqrt(-2.0 * log(u1)) * agent->velocity_ums; // computes the radius of a circumference.
 		theta = 2 * M_PI * u2; // computes the angle of rotation
-
 		agent->vx = r * cos(theta);
 		agent->vy = r * sin(theta);
+	}
+	//agent->vx = agent->vx;
+	//agent->vy = agent->vy;
 	return 0;
 }
 
@@ -1040,17 +1143,11 @@ __FLAME_GPU_FUNC__ int move(xmachine_memory_EV* agent){
 	agent->x_1 = agent->x;
 	agent->y_1 = agent->y;
 
-	agent->x += agent->vx;
-	agent->y += agent->vy;
+	agent->x += agent->vx * dt;
+	agent->y += agent->vy * dt;
 	agent->age += dt;
 
 	//agent->velocity_ums = sqrt(agent->diff_rate_um_x_twice_dof * agent->age) / agent->age;
-
-	agent->closest_cell_id = -1;
-	agent->closest_cell_distance = -1.0f;
-	agent->closest_ev_id = -1;
-	agent->closest_ev_distance = -1.0f;
-
     return 0;
 }
 
@@ -1113,8 +1210,9 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 					agent->x, agent->y, vx, vy, volume * const_mass_per_volume_unit, 0, // <- colour
 					radius_um, radius_m, diffusion_rate_m, diffusion_rate_um, 
 					diffusion_rate_um * 2 * dof,
-					-1, -1, -1, -1, 0, 
-					agent->direction_x, agent->direction_y, velocity_um, velocity_m);
+					-1, 100, -1, 100, -1, 100, 0, 
+					//agent->direction_x, agent->direction_y, 
+					velocity_um, velocity_m);
 
 				agent->time_since_last_secreted = 0;
 			}
