@@ -418,7 +418,7 @@ void runCuda()
 	glm::vec3 centralise;
 
 	//pointer
-	glm::vec4 *dptr, *dptr2, *dptr3;
+	glm::vec4 *dptr, *dptr2;
 
 
 	if (get_agent_EV_default_count() > 0)
@@ -696,28 +696,28 @@ void deleteTBO(cudaGraphicsResource_t* cudaResource, GLuint* tbo)
 //! Set Sphere Vertex Data
 ////////////////////////////////////////////////////////////////////////////////
 static void setSphereVertex(glm::vec3* data, int slice, int stack) {
-	float PI = 3.14159265358;
+	float PI = 3.14159265358f;
 
-	double sl = 2 * PI*slice / SPHERE_SLICES;
-	double st = 2 * PI*stack / SPHERE_STACKS;
+	float sl = 2 * PI*slice / SPHERE_SLICES;
+	float st = 2 * PI*stack / SPHERE_STACKS;
 
-	data->x = cos(st)*sin(sl) * SPHERE_RADIUS;
-	data->y = sin(st)*sin(sl) * SPHERE_RADIUS;
-	data->z = cos(sl) * SPHERE_RADIUS;
+	data->x = cosf(st)*sinf(sl) * SPHERE_RADIUS;
+	data->y = sinf(st)*sinf(sl) * SPHERE_RADIUS;
+	data->z = cosf(sl) * SPHERE_RADIUS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Set Sphere Normal Data
 ////////////////////////////////////////////////////////////////////////////////
 static void setSphereNormal(glm::vec3* data, int slice, int stack) {
-	float PI = 3.14159265358;
+	float PI = 3.14159265358f;
 
-	double sl = 2 * PI*slice / SPHERE_SLICES;
-	double st = 2 * PI*stack / SPHERE_STACKS;
+	float sl = 2 * PI*slice / SPHERE_SLICES;
+	float st = 2 * PI*stack / SPHERE_STACKS;
 
-	data->x = cos(st)*sin(sl);
-	data->y = sin(st)*sin(sl);
-	data->z = cos(sl);
+	data->x = cosf(st)*sinf(sl);
+	data->y = sinf(st)*sinf(sl);
+	data->z = cosf(sl);
 }
 
 static void setWallVertex(glm::vec3* data, int index) {
@@ -1051,15 +1051,15 @@ void mouse(int button, int state, int x, int y)
 void motion(int x, int y)
 {
 	float dx, dy;
-	dx = x - mouse_old_x;
-	dy = y - mouse_old_y;
+	dx = (float)(x - mouse_old_x);
+	dy = (float)(y - mouse_old_y);
 
 	if (mouse_buttons & 1) {
 		rotate_x += dy * 0.2f;
 		rotate_y += dx * 0.2f;
 	}
 	else if (mouse_buttons & 4) {
-		translate_z += dy * VIEW_DISTANCE * 0.001;
+		translate_z += (float)(dy * VIEW_DISTANCE * 0.001);
 	}
 
 	mouse_old_x = x;

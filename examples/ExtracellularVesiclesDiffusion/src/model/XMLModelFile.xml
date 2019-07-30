@@ -6,38 +6,42 @@
   <gpu:environment>
     <gpu:constants>
 
+      <!-- const_ev_collisions -->
       <gpu:variable>
         <type>int</type>
         <name>const_ev_collisions</name>
         <description>Boolean flag to determine at runtime if ev collisions could happen in the simulation</description>
         <defaultValue>1</defaultValue>
       </gpu:variable>
+      <!-- boundaries_enabled -->
       <gpu:variable>
         <type>int</type>
         <name>boundaries_enabled</name>
         <description>Boolean flag</description>
         <defaultValue>1</defaultValue>
       </gpu:variable>
-      
+      <!-- const_Boltzmann -->
       <gpu:variable>
         <type>float</type>
         <name>const_Boltzmann</name>
         <description>Boltzmann constant</description>
         <defaultValue>1.3806504e-23f</defaultValue>
       </gpu:variable>
+      <!-- const_Temperature_K -->
       <gpu:variable>
         <type>float</type>
         <name>const_Temperature_K</name>
         <description>Temperature (Kelvins) (20-25C) + 237.15</description>
         <defaultValue>293.15f</defaultValue>
       </gpu:variable>
+      <!-- const_Boltzmann_x_Temp_K -->
       <gpu:variable>
         <type>float</type>
         <name>const_Boltzmann_x_Temp_K</name>
         <description>Value needed for computing the diffusion rate</description>
         <defaultValue>4.0473766476e-21</defaultValue>
       </gpu:variable>
-      
+      <!-- const_water_viscosity -->
       <gpu:variable>
         <type>float</type>
         <name>const_water_viscosity</name>
@@ -48,45 +52,53 @@
         0.0009775, 0.0009544, 0.0009321, 0.0009107, 0.00089 -->
         <defaultValue>0.0010016f</defaultValue>
       </gpu:variable>
+      <!-- const_6_pi_viscosity -->
       <gpu:variable>
         <type>float</type>
         <name>const_6_pi_viscosity</name>
         <description>Value required for computing viscosity and drag</description>
       </gpu:variable>
+      <!-- const_boltzmann_x_temp -->
       <gpu:variable>
         <type>float</type>
         <name>const_boltzmann_x_temp</name>
         <description>Value required for computing viscosity and drag</description>
       </gpu:variable>
+      <!-- const_pi_4div3 -->
       <gpu:variable>
         <type>float</type>
         <name>const_pi_4div3</name>
         <description>Precomputed value for 4/3 * Pi</description>
         <defaultValue>4.1887902047863905</defaultValue>
       </gpu:variable>
+      <!-- const_mass_per_volume_unit -->
       <gpu:variable>
         <type>float</type>
         <name>const_mass_per_volume_unit</name>
         <description>Precomputed value for 100 nm ev mass / 100nm volume</description>
         <defaultValue>1.0465851455395313e-25</defaultValue>
       </gpu:variable>
-
+      
+      <!-- introduce_n_new_evs -->
       <gpu:variable>
         <!-- the number of evs the population must increase by -->
         <type>int</type>
         <name>introduce_n_new_evs</name>
         <defaultValue>0</defaultValue>
       </gpu:variable>
+      <!-- seconds_before_introducing_new_evs -->
       <gpu:variable>
         <type>float</type>
         <name>seconds_before_introducing_new_evs</name>
         <defaultValue>0.0f</defaultValue>
       </gpu:variable>
+      <!-- new_evs_threshold -->
       <gpu:variable>
         <type>float</type>
         <name>new_evs_threshold</name>
         <defaultValue>1.0f</defaultValue>
       </gpu:variable>
+      <!-- new_evs_random_direction -->
       <gpu:variable>
         <type>int</type>
         <name>new_evs_random_direction</name>
@@ -94,19 +106,29 @@
         <defaultValue>0</defaultValue>
       </gpu:variable>
       
+      <!-- dt - timestep of the model -->
       <gpu:variable>
         <type>float</type>
         <name>dt</name>
         <description>The timestep of the model</description>
         <defaultValue>0.003967782</defaultValue>
       </gpu:variable>
+      <!-- Degrees of Freedom -->
       <gpu:variable>
         <type>int</type>
         <name>dof</name>
         <description>Degrees of Freedom in the model</description>
         <defaultValue>1</defaultValue>
       </gpu:variable>
+      <!-- number of initial iterations with ballistic movement -->
+      <gpu:variable>
+        <type>int</type>
+        <name>const_iterations_in_ballistic_displacement</name>
+        <description>Number of iterations after which movement will follow brownian movement</description>
+        <defaultValue>1000</defaultValue>
+      </gpu:variable>
     </gpu:constants>
+    
     <gpu:functionFiles>
       <file>functions.c</file>
     </gpu:functionFiles>
@@ -404,6 +426,20 @@
           <name>vy</name>
           <description>The component on Y of velocity_um</description>
         </gpu:variable>
+
+        <gpu:variable>
+          <type>float</type>
+          <name>bm_vx</name>
+          <description>The component on X of velocity_um</description>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>bm_vy</name>
+          <description>The component on Y of velocity_um</description>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        
         <gpu:variable>
           <type>float</type>
           <name>mass_kg</name>
@@ -825,7 +861,7 @@
             <lhs>
               <value>const_ev_collisions</value>
             </lhs>
-            <operator>></operator>
+            <operator>&gt;</operator>
             <rhs>
               <value>0</value>
             </rhs>

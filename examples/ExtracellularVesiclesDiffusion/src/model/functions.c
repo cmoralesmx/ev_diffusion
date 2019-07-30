@@ -63,7 +63,6 @@ __device__ float euclidean_distance(xmachine_memory_EV* agent, float message_x, 
 		(agent->y - message_y) * (agent->y - message_y));
 }
 
-
 __FLAME_GPU_STEP_FUNC__ void exitFunction(){
 	//float x = reduce_EV_default_x_variable();
 	//float y = reduce_EV_default_y_variable();
@@ -150,18 +149,18 @@ __FLAME_GPU_FUNC__ int output_secretory_cell_location(xmachine_memory_SecretoryC
 }
 
 
-__device__ float perpendicular(float vec_x, float vec_y, float length_vec, int component=0) {
-	float x, y;
-	if (length_vec > 0) {
-		x = vec_y * (1 / length_vec);
-		y = -vec_x * (1 / length_vec);
-	}
-	else {
-		x = 0;// = make_float2(0, 0);
-		y = 0;
-	}
-	return component == 0 ? x : y;
-}
+//__device__ float perpendicular(float vec_x, float vec_y, float length_vec, int component=0) {
+//	float x, y;
+//	if (length_vec > 0) {
+//		x = vec_y * (1 / length_vec);
+//		y = -vec_x * (1 / length_vec);
+//	}
+//	else {
+//		x = 0;// = make_float2(0, 0);
+//		y = 0;
+//	}
+//	return component == 0 ? x : y;
+//}
 
 __device__ float dotprod(float x1, float y1, float x2, float y2) {
 	return x1*x2 + y1*y2;
@@ -179,181 +178,159 @@ __device__ float projection(float a_x, float a_y, float b_x, float b_y) {
 	return (a_x * b_x + a_y * b_y) / lengthVec;
 }
 
-__device__ float parallel(float vec_x, float vec_y, float u, int component = 0) {
-	if (component == 0)
-		return vec_x * (u / vlength(vec_x, vec_y));
-	else
-		return vec_y * (u / vlength(vec_x, vec_y));
+__device__ float2 parallel(float vec_x, float vec_y, float u) {
+	float factor = (u / vlength(vec_x, vec_y));
+	return make_float2(vec_x * factor, vec_y * factor);
 }
 
+__device__ float4 vectors_from_ev_to_wall_endpoints(xmachine_memory_EV* agent, const float & p1_x, const float & p1_y,
+	const float & p2_x, const float & p2_y) {
+	return make_float4(p1_x - agent->x, p1_y - agent->y, p2_x - agent->x, p2_y - agent->y);
+}
+
+__device__ float2 project_vectors_onto_wall(float4 ev_wall, float cell_direction_x, float cell_direction_y) {
+	return make_float2(
+		projection(ev_wall.x, ev_wall.y, cell_direction_x, cell_direction_y),
+		projection(ev_wall.z, ev_wall.w, cell_direction_x, cell_direction_y));
+}
+
+__device__ float2 perpendicular_distance_from_ev_to_wall(float4 ev_wall, float proj1, float cell_direction_x_unit, float cell_direction_y_unit) {
+	return make_float2(
+		ev_wall.x + cell_direction_x_unit * -proj1,
+		ev_wall.y + cell_direction_y_unit * -proj1
+	);
+}
+
+
+// solves direct collisions between EV and segments
+__device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_dir_x, 
+	float cell_dir_y, float cell_direction_length, float perp_dist_x, float perp_dist_y,
+	float cell_unit_normal_x, float cell_unit_normal_y) {
+	// 1. angle between velocity and wall 
+	float angle = acosf(dotprod(agent->vx, agent->vy, cell_dir_x, cell_dir_y) / (vlength(agent->vx, agent->vy) * cell_direction_length));
+	// 2. reposition object
+	// var normal = wall.normal;
+	// 2a compute the perpendicular to the cell
+	float normal_x = cell_unit_normal_x;
+	float normal_y = cell_unit_normal_y;
+	//printf("wall normal x:%f y:%f\n", normal_x, normal_y);
+	// 2b scale the normal by -1 if needed
+	float d = dotprod(normal_x, normal_y, agent->vx, agent->vy);
+	if (d > 0) { normal_x *= -1.0; normal_y *= -1.0; }
+
+	// 3. compute deltaS
+	// var deltaS = (obj.radius + dist.dotProduct(normal)) / Math.sin(angle);
+	float deltaS = (agent->radius_um + dotprod(perp_dist_x, perp_dist_y, normal_x, normal_y)) / sin(angle);
+
+	// 4. estimate what was the displacement = velocity parallel to delta
+	// var displ = obj.velo2D.para(deltaS);
+	float2 displ = parallel(agent->vx, agent->vy, deltaS);
+	//float displ_x = parallel(agent->vx, agent->vy, deltaS, 0);
+	//float displ_y = parallel(agent->vx, agent->vy, deltaS, 1);
+
+	// 5. update position by subtracting the displacement
+	// obj.pos2D = obj.pos2D.subtract(displ);
+	agent->x -= displ.x;
+	agent->y -= displ.y;
+
+	// velocity correction factor
+	//var vcor = 1-acc.dotProduct(displ)/obj.velo2D.lengthSquared();
+	//float numerator = dotprod(acceleration_x, acceleration_y, displ_x, displ_y);
+	//float sqr_vel = (agent->vx * agent->vx + agent->vy*agent->vy);
+	//float vfrac = numerator / sqr_vel;
+	//float vcor = 1 - vfrac;
+
+	//printf("displx:%f disply:%f numerator:%f sqr_vel:%f vfrac:%f vcor:%f\n", displ_x, displ_y, numerator, sqr_vel, vfrac, vcor);
+	// corrected velocity vector just before impact 
+	// var Velo = obj.velo2D.multiply(vcor)
+	//float new_velocity_x = agent->vx;// *vcor;
+	//float new_velocity_y = agent->vy;// *vcor;
+
+	// 6. decompose the velocity
+	// velocity vector component perpendicular to wall just before impact
+	// var normalVelo = dist.para(Velo.projection(dist));
+	float velocityProjection = projection(agent->vx, agent->vy, perp_dist_x, perp_dist_y);
+	float2 normalVelocity = parallel(perp_dist_x, perp_dist_y, velocityProjection);
+	//float normalVelocity_x = parallel(perp_dist_x, perp_dist_y, velocityProjection, 0);
+	//float normalVelocity_y = parallel(perp_dist_x, perp_dist_y, velocityProjection, 1);
+
+	// velocity vector component parallel to wall; unchanged by impact
+	// var tangentVelo = Velo.subtract(normalVelo);
+	float tangentVelocity_x = agent->vx - normalVelocity.x;
+	float tangentVelocity_y = agent->vy - normalVelocity.y;
+
+	// velocity vector component perpendicular to wall just after impact
+	// obj.velo2D = tangentVelo.addScaled(normalVelo, -vfac);
+	agent->vx = tangentVelocity_x + (-normalVelocity.x);
+	agent->vy = tangentVelocity_y + (-normalVelocity.y);
+
+	return 0;
+}
+
+__device__  int solve_segment_end_point_collision(xmachine_memory_EV* agent, 
+	float ev_wall_pt_x, float ev_wall_pt_y, float cell_direction_length,
+	float dist_x, float dist_y) {
+	// bounce off endpoint wall_p1
+	float distp_x = agent->x - ev_wall_pt_x;
+	float distp_y = agent->y - ev_wall_pt_y;
+	//var distp = obj.pos2D.subtract(pEndpoint);
+	//// move particle so that it just touches the endpoint			
+	//var L = obj.radius - distp.length();
+	//var vrel = obj.velo2D.length();
+	//obj.pos2D = obj.pos2D.addScaled(obj.velo2D, -L / vrel);
+	float L = agent->radius_um - vlength(distp_x, distp_y);
+	float vrel = vlength(agent->vx, agent->vy);
+	agent->x += (-L / vrel) * agent->vx;
+	agent->y += (-L / vrel) * agent->vy;
+
+	//// normal velocity vector just before the impact
+	//var normalVelo = obj.velo2D.project(distp);
+	float normalVelo = projection(agent->vx, agent->vy, distp_x, distp_y);
+	//// tangential velocity vector
+	//var tangentVelo = obj.velo2D.subtract(normalVelo);
+	float tangentVelo_x = agent->vx - normalVelo;
+	float tangentVelo_y = agent->vy - normalVelo;
+	//// normal velocity vector after collision
+	//normalVelo.scaleBy(-vfac);
+
+	//// final velocity vector after collision
+	//obj.velo2D = normalVelo.add(tangentVelo);
+	agent->vx = normalVelo + tangentVelo_x;
+	agent->vy = normalVelo + tangentVelo_y;
+	agent->velocity_ms = 666.f;
+	return 0;
+}
 
 /**
 Collision resolution algorithm modified from Physics for Javascript Games, Animation, and Simulation Ch, 11
 */
-__FLAME_GPU_FUNC__ int secretory_cell_collision_resolution(xmachine_memory_EV* agent, xmachine_message_secretory_cell_collision_list* secretory_cell_collision_messages){
+__FLAME_GPU_FUNC__ int secretory_cell_collision_resolution(xmachine_memory_EV* agent, 
+	xmachine_message_secretory_cell_collision_list* secretory_cell_collision_messages){
 
 	xmachine_message_secretory_cell_collision* message = get_first_secretory_cell_collision_message(secretory_cell_collision_messages);
 	
 	while (message){
 		// we verify the ev_id in the message matches this agent's id
 		if (message->ev_id == agent->id) {
-			//printf("================ collision checking for agent %d and wall %d =================\n", agent->id, message->cell_id);
-			
-			// vectors from ball to endpoints of wall
-			// var ballp1 = wall.p1.subtract(obj.pos2D);
-			float ev_p1x = message->p1_x - agent->x;
-			float ev_p1y = message->p1_y - agent->y;
-			float ev_p2x = message->p2_x - agent->x;
-			float ev_p2y = message->p2_y - agent->y;
+			float4 ev_wall_vectors = vectors_from_ev_to_wall_endpoints(agent, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
+			float2 projections = project_vectors_onto_wall(ev_wall_vectors, message->cell_direction_x, message->cell_direction_y);
+			float2 perp_dist = perpendicular_distance_from_ev_to_wall(ev_wall_vectors, projections.x, message->cell_direction_x_unit, message->cell_direction_y_unit);
 
-			// projection of above vectors onto wall vector
-			float proj1 = projection(ev_p1x, ev_p1y, message->cell_direction_x, message->cell_direction_y);
-			float proj2 = projection(ev_p2x, ev_p2y, message->cell_direction_x, message->cell_direction_y);
-			//printf("projection1:%f\n", proj1);
+			bool test_needed = (abs(projections.x) < message->cell_direction_length) && (abs(projections.y) < message->cell_direction_length);
 
-			// Perpendicular distance vector from the object to the wall
-			// var dist = ballp1.addScaled(wdir.unit(), proj1*(-1));
-			// needs the cell direction unit vector
-			// float2 dist = ballp1 + (cellDir / length(cellDir)) * proj1 * -1;
-			float dist_x = ev_p1x + message->cell_direction_x_unit * (proj1 * -1.0f);  // <- distance to compensate
-			float dist_y = ev_p1y + message->cell_direction_y_unit * (proj1 * -1.0f);
+			if ((vlength(perp_dist.x, perp_dist.y) < agent->radius_um) && test_needed) {
 
-			// collision detection
-			//var test = ((Math.abs(proj1) < wdir.length()) && (Math.abs(proj2) < wdir.length()));
-			bool test = (abs(proj1) < message->cell_direction_length) && (abs(proj2) < message->cell_direction_length);
-			agent->velocity_ms = 111.0f;
-
-			if ((vlength(dist_x, dist_y) < agent->radius_um) && test)
-			{
-				//printf("Current values vx:%f vy:%f x:%f y:%f\n", agent->vx, agent->vy, agent->x, agent->y);
-				// 1. angle between velocity vector and wall direction
-				float angle = acosf(dotprod(agent->vx, agent->vy, message->cell_direction_x, message->cell_direction_y) 
-					/ (vlength(agent->vx, agent->vy) * message->cell_direction_length));
-				
-				// 2. reposition object
-				// var normal = wall.normal;
-				// 2a compute the perpendicular to the cell
-				//float normal_x = perpendicular(message->cell_direction_x, message->cell_direction_y, message->cell_direction_length, 0);
-				//float normal_y = perpendicular(message->cell_direction_x, message->cell_direction_y, message->cell_direction_length, 1);
-				//printf("wall normal x:%f y:%f\n", normal_x, normal_y);
-				
-				// 2b scale the normal by -1 if needed
-				float normal_x = message->unit_normal_x;
-				float normal_y = message->unit_normal_y;
-				float d = dotprod(normal_x, normal_y, agent->vx, agent->vy);
-				if (d > 0) { normal_x *= -1.0; normal_y *= -1.0; }
-
-				// 3. compute deltaS
-				// var deltaS = (obj.radius + dist.dotProduct(normal)) / Math.sin(angle);
-				float deltaS = (agent->radius_um + dotprod(dist_x, dist_y, normal_x, normal_y)) / sin(angle);
-
-				// 4. estimate what was the displacement = velocity parallel to delta
-				// var displ = obj.velo2D.para(deltaS);
-				float displ_x = parallel(agent->vx, agent->vy, deltaS, 0);
-				float displ_y = parallel(agent->vx, agent->vy, deltaS, 1);
-
-				// 5. update position by subtracting the displacement
-				// obj.pos2D = obj.pos2D.subtract(displ);
-				agent->x -= displ_x;
-				agent->y -= displ_y;
-
-				// velocity correction factor
-				//var vcor = 1-acc.dotProduct(displ)/obj.velo2D.lengthSquared();
-				//float numerator = dotprod(acceleration_x, acceleration_y, displ_x, displ_y);
-				//float sqr_vel = (agent->vx * agent->vx + agent->vy*agent->vy);
-				//float vfrac = numerator / sqr_vel;
-				//float vcor = 1 - vfrac;
-
-				//printf("displx:%f disply:%f numerator:%f sqr_vel:%f vfrac:%f vcor:%f\n", displ_x, displ_y, numerator, sqr_vel, vfrac, vcor);
-				// corrected velocity vector just before impact 
-				// var Velo = obj.velo2D.multiply(vcor)
-				float new_velocity_x = agent->vx;// *vcor;
-				float new_velocity_y = agent->vy;// *vcor;
-
-				// 6. decompose the velocity
-				// velocity vector component perpendicular to wall just before impact
-				// var normalVelo = dist.para(Velo.projection(dist));
-				float velocityProjection = projection(new_velocity_x, new_velocity_y, dist_x, dist_y);
-				float normalVelocity_x = parallel(dist_x, dist_y, velocityProjection, 0);
-				float normalVelocity_y = parallel(dist_x, dist_y, velocityProjection, 1);
-
-				// velocity vector component parallel to wall; unchanged by impact
-				// var tangentVelo = Velo.subtract(normalVelo);
-				float tangentVelocity_x = new_velocity_x - normalVelocity_x;
-				float tangentVelocity_y = new_velocity_y - normalVelocity_y;
-
-				// velocity vector component perpendicular to wall just after impact
-				// obj.velo2D = tangentVelo.addScaled(normalVelo, -vfac);
-				agent->vx = tangentVelocity_x + normalVelocity_x * -1;
-				agent->vy = tangentVelocity_y + normalVelocity_y * -1;
-				agent->velocity_ms = 112.f; //sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
-				//printf("New values vx:%f vy:%f x:%f y:%f\n", agent->vx, agent->vy, agent->x, agent->y);
+				solve_segment_collision(agent, message->cell_direction_x, message->cell_direction_y, message->cell_direction_length, 
+					perp_dist.x, perp_dist.y, message->unit_normal_x, message->unit_normal_y);
 			}
-			// collision at the boundaries
-			else if (abs(vlength(ev_p1x, ev_p1y)) < agent->radius_um) {
-				// bounce off endpoint wall_p1
-				float distp_x = agent->x - ev_p1x;
-				float distp_y = agent->y - ev_p1y;
-				//var distp = obj.pos2D.subtract(pEndpoint);
-				//// move particle so that it just touches the endpoint			
-				//var L = obj.radius - distp.length();
-				//var vrel = obj.velo2D.length();
-				//obj.pos2D = obj.pos2D.addScaled(obj.velo2D, -L / vrel);
-				float L = agent->radius_um - vlength(distp_x, distp_y);
-				float vrel = vlength(agent->vx, agent->vy);
-				agent->x += (-L / vrel) * agent->vx;
-				agent->y += (-L / vrel) * agent->vy;
-
-				//// normal velocity vector just before the impact
-				//var normalVelo = obj.velo2D.project(distp);
-				float normalVelo = projection(agent->vx, agent->vy, distp_x, distp_y);
-				//// tangential velocity vector
-				//var tangentVelo = obj.velo2D.subtract(normalVelo);
-				float tangentVelo_x = agent->vx - normalVelo;
-				float tangentVelo_y = agent->vy - normalVelo;
-				//// normal velocity vector after collision
-				//normalVelo.scaleBy(-vfac);
-
-				//// final velocity vector after collision
-				//obj.velo2D = normalVelo.add(tangentVelo);
-				agent->vx = normalVelo + tangentVelo_x;
-				agent->vy = normalVelo + tangentVelo_y;
-				agent->velocity_ms = 113; // sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
-				//printf("Collision with boundary p1\n");
+			else if (abs(vlength(ev_wall_vectors.x, ev_wall_vectors.y)) < agent->radius_um) {
+				// collision with 1st end point
+				solve_segment_end_point_collision(agent, ev_wall_vectors.x, ev_wall_vectors.y, message->cell_direction_length, perp_dist.x, perp_dist.y);
 			}
-			else if (abs(vlength(ev_p2x, ev_p2y)) < agent->radius_um) {
-				// bouce off endpoint wall_p2
-
-				float distp_x = agent->x - ev_p2x;
-				float distp_y = agent->y - ev_p2y;
-				//var distp = obj.pos2D.subtract(pEndpoint);
-				//// move particle so that it just touches the endpoint			
-				//var L = obj.radius - distp.length();
-				//var vrel = obj.velo2D.length();
-				//obj.pos2D = obj.pos2D.addScaled(obj.velo2D, -L / vrel);
-				float L = agent->radius_um - vlength(distp_x, distp_y);
-				float vrel = vlength(agent->vx, agent->vy);
-				agent->x += (-L / vrel) * agent->vx;
-				agent->y += (-L / vrel) * agent->vy;
-
-				//// normal velocity vector just before the impact
-				//var normalVelo = obj.velo2D.project(distp);
-				float normalVelo = projection(agent->vx, agent->vy, distp_x, distp_y);
-				//// tangential velocity vector
-				//var tangentVelo = obj.velo2D.subtract(normalVelo);
-				float tangentVelo_x = agent->vx - normalVelo;
-				float tangentVelo_y = agent->vy - normalVelo;
-				//// normal velocity vector after collision
-				//normalVelo.scaleBy(-vfac);
-
-				//// final velocity vector after collision
-				//obj.velo2D = normalVelo.add(tangentVelo);
-				agent->vx = normalVelo + tangentVelo_x;
-				agent->vy = normalVelo + tangentVelo_y;
-				agent->velocity_ms = 114.f; // sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
-				//printf("Collision with boundary p2\n");
+			else if (abs(vlength(ev_wall_vectors.z, ev_wall_vectors.w)) < agent->radius_um) {
+				// collision with 2nd end point
+				solve_segment_end_point_collision(agent, ev_wall_vectors.z, ev_wall_vectors.w, message->cell_direction_length, perp_dist.x, perp_dist.y);
 			}
-			// no collision occurred
 		}
 		message = get_next_secretory_cell_collision_message(message, secretory_cell_collision_messages);
 	}
@@ -364,162 +341,34 @@ __FLAME_GPU_FUNC__ int secretory_cell_collision_resolution(xmachine_memory_EV* a
 This function resolves a single collision between an EV and a ciliary cell
 After this, the EV has new values for x, y, vx, and vy, compensated for the collision
 */
-__FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* agent, xmachine_message_ciliary_cell_collision_list* ciliary_cell_collision_messages) {
+__FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* agent, 
+	xmachine_message_ciliary_cell_collision_list* ciliary_cell_collision_messages) {
 
 	xmachine_message_ciliary_cell_collision* message = get_first_ciliary_cell_collision_message(ciliary_cell_collision_messages);
 	//float acceleration_x = 0, acceleration_y = 0;
 	while (message) {
 		// we verify the ev_id in the message matches this agent's id
 		if (message->ev_id == agent->id) {
-			// collision checking for this pair of agent and wall segment
 			
-			// we compute the vectors from ev_agent to the wall endpoints
-			// var ballp1 = wall.p1.subtract(obj.pos2D);
-			float ev_p1x = message->p1_x - agent->x;
-			float ev_p1y = message->p1_y - agent->y;
-			float ev_p2x = message->p2_x - agent->x;
-			float ev_p2y = message->p2_y - agent->y;
+			float4 ev_wall_vectors = vectors_from_ev_to_wall_endpoints(agent, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
+			float2 projections = project_vectors_onto_wall(ev_wall_vectors, message->cell_direction_x, message->cell_direction_y);
+			float2 perp_dist = perpendicular_distance_from_ev_to_wall(ev_wall_vectors, projections.x, message->cell_direction_x_unit, message->cell_direction_y_unit);
 
-			// projection of the above vectors onto wall vector
-			float proj1 = projection(ev_p1x, ev_p1y, message->cell_direction_x, message->cell_direction_y);
-			float proj2 = projection(ev_p2x, ev_p2y, message->cell_direction_x, message->cell_direction_y);
+			bool test_needed = (abs(projections.x) < message->cell_direction_length) && (abs(projections.y) < message->cell_direction_length);
 
-			// Perpendicular distance vector from the object to the wall
-			// var dist = ballp1.addScaled(wdir.unit(), proj1*(-1));
-			float dist_x = ev_p1x + message->cell_direction_x_unit * (proj1 * -1.f);  // <- distance to compensate
-			float dist_y = ev_p1y + message->cell_direction_y_unit * (proj1 * -1.f);
+			if ((vlength(perp_dist.x, perp_dist.y) < agent->radius_um) && test_needed) {
 
-			// collision detection
-			//var test = ((Math.abs(proj1) < wdir.length()) && (Math.abs(proj2) < wdir.length()));
-			bool test = (abs(proj1) < message->cell_direction_length) && (abs(proj2) < message->cell_direction_length);
-			agent->velocity_ms = 511.f;
-			if ((vlength(dist_x, dist_y) < agent->radius_um) && test)
-			{
-				//printf("Current values vx:%f vy:%f x:%f y:%f\n", agent->vx, agent->vy, agent->x, agent->y);
-				// 1. angle between velocity and wall 
-				float angle = acosf(dotprod(agent->vx, agent->vy, message->cell_direction_x, message->cell_direction_y) / (vlength(agent->vx, agent->vy) * message->cell_direction_length));
-				//printf("angle: %f\n", angle);
-
-				// 2. reposition object
-				// 2a compute the perpendicular to the cell
-				//float normal_x = perpendicular(message->cell_direction_x, message->cell_direction_y, message->cell_direction_length, 0);
-				//float normal_y = perpendicular(message->cell_direction_x, message->cell_direction_y, message->cell_direction_length, 1);
-				float normal_x = message->unit_normal_x;
-				float normal_y = message->unit_normal_y;
-				// 2b scale the normal by -1 if needed (needed by walls constructed using the binormal instead of the normal)
-				float d = dotprod(normal_x, normal_y, agent->vx, agent->vy);
-				if (d > 0) { normal_x *= -1.0; normal_y *= -1.0; }
-
-				// 3. compute deltaS
-				// var deltaS = (obj.radius + dist.dotProduct(normal)) / Math.sin(angle);
-				float deltaS = (agent->radius_um + dotprod(dist_x, dist_y, normal_x, normal_y)) / sin(angle);
-
-				// 4. estimate what was the displacement = velocity parallel to delta
-				// var displ = obj.velo2D.para(deltaS);
-				float displ_x = parallel(agent->vx, agent->vy, deltaS, 0);
-				float displ_y = parallel(agent->vx, agent->vy, deltaS, 1);
-
-				// 5. update position by subtracting the displacement
-				// obj.pos2D = obj.pos2D.subtract(displ);
-				agent->x -= displ_x;
-				agent->y -= displ_y;
-
-				// velocity correction factor
-				//var vcor = 1-acc.dotProduct(displ)/obj.velo2D.lengthSquared();
-				//float numerator = dotprod(0, 0, displ_x, displ_y);
-				//float sqr_vel = (agent->vx * agent->vx + agent->vy*agent->vy);
-				//float vfrac = numerator / sqr_vel;
-				//float vcor = 1 - vfrac;
-
-				// corrected velocity vector just before impact 
-				// var Velo = obj.velo2D.multiply(vcor)
-				float new_velocity_x = agent->vx;// *1;
-				float new_velocity_y = agent->vy;// *1;
-
-				// 6. decompose the velocity
-				// velocity vector component perpendicular to wall just before impact
-				// var normalVelo = dist.para(Velo.projection(dist));
-				float velocityProjection = projection(new_velocity_x, new_velocity_y, dist_x, dist_y);
-				float normalVelocity_x = parallel(dist_x, dist_y, velocityProjection, 0);
-				float normalVelocity_y = parallel(dist_x, dist_y, velocityProjection, 1);
-
-				// velocity vector component parallel to wall; unchanged by impact
-				// var tangentVelo = Velo.subtract(normalVelo);
-				float tangentVelocity_x = new_velocity_x - normalVelocity_x;
-				float tangentVelocity_y = new_velocity_y - normalVelocity_y;
-
-				// velocity vector component perpendicular to wall just after impact
-				// obj.velo2D = tangentVelo.addScaled(normalVelo, -vfac);
-				agent->vx = tangentVelocity_x + normalVelocity_x * -1;
-				agent->vy = tangentVelocity_y + normalVelocity_y * -1;
-				agent->velocity_ms = 512.f; //sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
+				solve_segment_collision(agent, message->cell_direction_x, message->cell_direction_y, message->cell_direction_length,
+					perp_dist.x, perp_dist.y, message->unit_normal_x, message->unit_normal_y);
 			}
-			// collision at the boundaries
-			else if (abs(vlength(ev_p1x, ev_p1y)) < agent->radius_um) {
-				// SEEMS TO WORK OK
-				// bouce off endpoint wall_p1
-				float distp_x = agent->x - ev_p1x;
-				float distp_y = agent->y - ev_p1y;
-				//var distp = obj.pos2D.subtract(pEndpoint);
-				//// move particle so that it just touches the endpoint			
-				//var L = obj.radius - distp.length();
-				//var vrel = obj.velo2D.length();
-				//obj.pos2D = obj.pos2D.addScaled(obj.velo2D, -L / vrel);
-				float L = agent->radius_um - vlength(distp_x, distp_y);
-				float vrel = vlength(agent->vx, agent->vy);
-				agent->x += (-L / vrel) * agent->vx;
-				agent->y += (-L / vrel) * agent->vy;
-
-				//// normal velocity vector just before the impact
-				//var normalVelo = obj.velo2D.project(distp);
-				float normalVelo = projection(agent->vx, agent->vy, distp_x, distp_y);
-				//// tangential velocity vector
-				//var tangentVelo = obj.velo2D.subtract(normalVelo);
-				float tangentVelo_x = agent->vx - normalVelo;
-				float tangentVelo_y = agent->vy - normalVelo;
-				//// normal velocity vector after collision
-				//normalVelo.scaleBy(-vfac);
-
-				//// final velocity vector after collision
-				//obj.velo2D = normalVelo.add(tangentVelo);
-				agent->vx = normalVelo + tangentVelo_x;
-				agent->vy = normalVelo + tangentVelo_y;
-				agent->velocity_ms = 513.f; // sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
-				//printf("Collision with boundary p1\n");
+			else if (abs(vlength(ev_wall_vectors.x, ev_wall_vectors.y)) < agent->radius_um) {
+				// collision with 1st end point
+				solve_segment_end_point_collision(agent, ev_wall_vectors.x, ev_wall_vectors.y, message->cell_direction_length, perp_dist.x, perp_dist.y);
 			}
-			else if (abs(vlength(ev_p2x, ev_p2y)) < agent->radius_um) {
-				// bouce off endpoint wall_p2
-
-				float distp_x = agent->x - ev_p2x;
-				float distp_y = agent->y - ev_p2y;
-				//var distp = obj.pos2D.subtract(pEndpoint);
-				//// move particle so that it just touches the endpoint			
-				//var L = obj.radius - distp.length();
-				//var vrel = obj.velo2D.length();
-				//obj.pos2D = obj.pos2D.addScaled(obj.velo2D, -L / vrel);
-				float L = agent->radius_um - vlength(distp_x, distp_y);
-				float vrel = vlength(agent->vx, agent->vy);
-				agent->x += (-L / vrel) * agent->vx;
-				agent->y += (-L / vrel) * agent->vy;
-
-				//// normal velocity vector just before the impact
-				//var normalVelo = obj.velo2D.project(distp);
-				float normalVelo = projection(agent->vx, agent->vy, distp_x, distp_y);
-				//// tangential velocity vector
-				//var tangentVelo = obj.velo2D.subtract(normalVelo);
-				float tangentVelo_x = agent->vx - normalVelo;
-				float tangentVelo_y = agent->vy - normalVelo;
-				//// normal velocity vector after collision
-				//normalVelo.scaleBy(-vfac);
-
-				//// final velocity vector after collision
-				//obj.velo2D = normalVelo.add(tangentVelo);
-				agent->vx = normalVelo + tangentVelo_x;
-				agent->vy = normalVelo + tangentVelo_y;
-				agent->velocity_ms = 514.f; // sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
-				//printf("Collision with boundary p2\n");
+			else if (abs(vlength(ev_wall_vectors.z, ev_wall_vectors.w)) < agent->radius_um) {
+				// collision with 2nd end point
+				solve_segment_end_point_collision(agent, ev_wall_vectors.z, ev_wall_vectors.w, message->cell_direction_length, perp_dist.x, perp_dist.y);
 			}
-			// no collision occurred
 		}
 		message = get_next_ciliary_cell_collision_message(message, ciliary_cell_collision_messages);
 	}
@@ -603,7 +452,6 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 {
 	int closest_cell = -1;
 	float closest_cell_distance = 100.f;
-	float3 closest;
 	float4 res;
 	float4 wall_direction;
 	float4 wall_normal;
@@ -623,14 +471,11 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 			// if the ev new position is projecting over the segment and the distance to the segment < radius
 			if (res.x == 1.0f && res.y < agent->radius_um)
 			{
-				//printf("secretory res.x: %f res.y:%f radius_um:%f\n", res.x, res.y, agent->radius_um);
 				if (res.y < closest_cell_distance)
 				{
 					closest_cell = message->id;
 					closest_cell_distance = res.y;
-					closest.x = res.z;
-					closest.y = res.w;
-					//closest.z = message->angle; //get_boundary_angle(offset_angles[agent->sec] + i);
+					
 					// wall direction values
 					wall_direction.x = message->direction_x;
 					wall_direction.y = message->direction_y;
@@ -816,7 +661,6 @@ __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xm
 {
 	int closest_cell = -1;
 	float closest_cell_distance = 100.f;
-	float3 closest;
 	float4 res;
 	float4 wall_direction;
 	float4 wall_normal;
@@ -844,9 +688,6 @@ __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xm
 				{
 					closest_cell = message->id;
 					closest_cell_distance = res.y;
-					closest.x = res.z;
-					closest.y = res.w;
-					//closest.z = message->angle; //get_boundary_angle(offset_angles[agent->sec] + i);
 					// wall direction values
 					wall_direction.x = message->direction_x;
 					wall_direction.y = message->direction_y;
@@ -899,30 +740,40 @@ __FLAME_GPU_FUNC__ int ev_collision_resolution(xmachine_memory_EV* agent, xmachi
 	// fetch the message where this EV is involved in the collision
 	xmachine_message_ev_collision* message = get_first_ev_collision_message(ev_collision_messages);
 	while (message){
-		if (message->ev1_id == agent->id && message->ev2_id == agent->closest_ev_id){
+		if ( (message->ev1_id == agent->id && message->ev2_id == agent->closest_ev_id) 
+			|| (message->ev2_id == agent->id && message->ev1_id == agent->closest_ev_id) ){
 			// agent is ev1
 			dmin = message->ev1_r_um + message->ev2_r_um;
 
 			// compute the direction resulting of the collision
-			cs = (message->ev2_x - message->ev1_x) / (message->distance + FLT_MIN);
-			sc = (message->ev2_y - message->ev1_y) / (message->distance + FLT_MIN);
+			cs = (message->ev2_x - message->ev1_x) / (message->distance == 0 ? FLT_MIN : message->distance);
+			sc = (message->ev2_y - message->ev1_y) / (message->distance == 0 ? FLT_MIN : message->distance);
 
 			// calculate the component of velocity in direction cs, sc for each particle
 			vp1 = message->ev1_vx * cs + message->ev1_vy * sc; // ev1
 			vp2 = message->ev2_vx * cs + message->ev2_vy * sc; // ev2
 
 			// back to collision time
-			ddt = (dmin - message->distance) / ((vp1 - vp2) + FLT_MIN);
+			float vp1vp2 = vp1 - vp2;
+			ddt = (dmin - message->distance) / (vp1vp2 == 0 ? FLT_MIN : vp1vp2);
 
 			// time of collision occuring after the time step ? don't affect current velocities
 			// otherwise, get the next position back to the moment of collision
-			if (ddt > dt)
+			if (ddt > dt) {
 				ddt = 0;
-			else if (ddt < 0)
-				ddt = dt;
-
-			agent->x -= message->ev1_vx * ddt; // ev1 - agent->x
-			agent->y -= message->ev1_vy * ddt;
+			}
+			else {
+				if (ddt < 0)
+					ddt = dt;
+			}
+			if (message->ev1_id == agent->id) {
+				agent->x -= message->ev1_vx * ddt; // ev1 - agent->x
+				agent->y -= message->ev1_vy * ddt;
+			}
+			else {
+				agent->x -= message->ev2_vx * ddt; // ev2 - agent
+				agent->y -= message->ev2_vx * ddt;
+			}
 
 			// calculate components of velocity
 			dx = (message->ev2_x - message->ev1_x);
@@ -931,71 +782,33 @@ __FLAME_GPU_FUNC__ int ev_collision_resolution(xmachine_memory_EV* agent, xmachi
 			// where x1, y1 are center of ball1, and x2, y2 are center of ball2
 			distance = sqrt(dx*dx + dy*dy);
 			// Unit vector in the direction of the collision
-			ax = dx / (distance + FLT_MIN);
-			ay = dy / (distance + FLT_MIN);
+			ax = dx / (distance == 0 ? FLT_MIN : distance);
+			ay = dy / (distance == 0 ? FLT_MIN : distance);
 			// Projection of the velocities in these axes
 			// vector sum for velocity p1, p2
 			va1 = message->ev1_vx * ax + message->ev1_vy * ay;
-			vb = -(message->ev1_vx) * ay + message->ev1_vy * ax;
+			if (message->ev1_id == agent->id) {
+				vb = -(message->ev1_vx) * ay + message->ev1_vy * ax;
+			}
+			else {
+				vb = -message->ev2_vx * ay + message->ev2_vy * ax;
+			}
 			va2 = message->ev2_vx * ax + message->ev2_vy * ay;
 			// New velocities in these axes(after collision)
 
-			float vaP = va1 + 2 * (va2 - va1) / ((1 + message->ev1_mass / message->ev2_mass) + FLT_MIN);
+			float vaP;
 
+			if (message->ev1_id == agent->id) {
+				float one_plus_mass1_div_mass2 = 1 + message->ev1_mass / message->ev2_mass;
+				vaP = va1 + 2 * (va2 - va1) / (one_plus_mass1_div_mass2 == 0 ? FLT_MIN : one_plus_mass1_div_mass2);
+			}
+			else {
+				float one_plus_mass2_div_mass1 = 1 + message->ev2_mass / message->ev1_mass;
+				vaP = va2 + 2 * (va1 - va2) / (one_plus_mass2_div_mass1 == 0 ? FLT_MIN : one_plus_mass2_div_mass1);
+			}
 			// undo the projections, get back to the original coordinates
 			agent->vx = vaP * ax - vb * ay;
 			agent->vy = vaP * ay + vb * ax; // new vx, vy for ball 1 after collision;
-			agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
-			// Because we have moved back the time by dt, we need to move the time forward by dt.
-			agent->x += agent->vx * (dt - ddt);
-			agent->y += agent->vy * (dt - ddt);
-		}
-		else if (message->ev2_id == agent->id && message->ev1_id == agent->closest_ev_id){
-			// agent is ev2
-			dmin = message->ev1_r_um + message->ev2_r_um;
-
-			// compute the direction resulting of the collision
-			cs = (message->ev2_x - message->ev1_x) / (message->distance + FLT_MIN);
-			sc = (message->ev2_y - message->ev1_y) / (message->distance + FLT_MIN);
-
-			// calculate the component of velocity in direction cs, sc for each particle
-			vp1 = message->ev1_vx * cs + message->ev1_vy * sc; // ev1
-			vp2 = message->ev2_vx * cs + message->ev2_vy * sc; // ev2
-
-			// back to collision time
-			ddt = (dmin - message->distance) / ((vp1 - vp2) + FLT_MIN);
-
-			// time of collision occuring after the time step ? don't affect current velocities
-			// otherwise, get the next position back to the moment of collision
-			if (ddt > dt)
-				ddt = 0;
-			else if (ddt < 0)
-				ddt = dt;
-
-			agent->x -= message->ev2_vx * ddt; // ev2 - agent
-			agent->y -= message->ev2_vx * ddt;
-
-			// calculate component of velocity
-			dx = (message->ev2_x - message->ev1_x);
-			dy = (message->ev2_y - message->ev1_y);
-			// where x1, y1 are center of ball1, and x2, y2 are center of ball2
-			distance = sqrt(dx*dx + dy*dy);
-			// Unit vector in the direction of the collision
-			ax = dx / (distance + FLT_MIN);
-			ay = dy / (distance + FLT_MIN);
-			// Projection of the velocities in these axes
-			// vector sum for velocity p1, p2
-			va1 = message->ev1_vx * ax + message->ev1_vy * ay;
-			//float vb1 = -message->ev1_vx * ay + message->ev1_vy * ax;
-			va2 = message->ev2_vx * ax + message->ev2_vy * ay;
-			vb = -message->ev2_vx * ay + message->ev2_vy * ax;
-			// New velocities in these axes(after collision)
-			//float vaP1 = va1 + 2 * (va2 - va1) / (1 + message->ev1_mass / message->ev2_mass);
-			vaP = va2 + 2 * (va1 - va2) / ((1 + message->ev2_mass / message->ev1_mass) + FLT_MIN);
-
-			// undo the projections, get back to the original coordinates
-			agent->vx = vaP * ax - vb * ay;
-			agent->vy = vaP * ay + vb * ax; // new vx, vy for ball 2 after collision
 			agent->velocity_ums = sqrtf(agent->vx * agent->vx + agent->vy * agent->vy);
 			// Because we have moved back the time by dt, we need to move the time forward by dt.
 			agent->x += agent->vx * (dt - ddt);
@@ -1117,8 +930,10 @@ After secretion, the EV displaces balistically for < 600 iterations, no brownian
 Due to limitations in FlameGPU, we sample both continuos numbers from the same RNG.
 */
 __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
-	float u1, u2, fac, rsq, r, theta; 
-	if (agent->age > dt * 6000) {
+	float u1, u2, r, theta; 
+	agent->bm_vx = 0;
+	agent->bm_vy = 0;
+	if (agent->age > dt * const_iterations_in_ballistic_displacement) {
 		u1 = rnd<CONTINUOUS>(rand48);
 		u2 = rnd<CONTINUOUS>(rand48);
 		// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
@@ -1126,9 +941,10 @@ __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand4
 		theta = 2 * M_PI * u2; // computes the angle of rotation
 		agent->vx = r * cos(theta);
 		agent->vy = r * sin(theta);
+		// we also save the new values due to brownian motion for debugging/validationn purposes
+		agent->bm_vx = agent->vx;
+		agent->bm_vy = agent->vy;
 	}
-	//agent->vx = agent->vx;
-	//agent->vy = agent->vy;
 	return 0;
 }
 
@@ -1210,8 +1026,10 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 					agent->x, agent->y, vx, vy, volume * const_mass_per_volume_unit, 0, // <- colour
 					radius_um, radius_m, diffusion_rate_m, diffusion_rate_um, 
 					diffusion_rate_um * 2 * dof,
+					// closest elements and distances
 					-1, 100, -1, 100, -1, 100, 0, 
-					//agent->direction_x, agent->direction_y, 
+					// place holders for brownian motion values
+					0, 0,
 					velocity_um, velocity_m);
 
 				agent->time_since_last_secreted = 0;
