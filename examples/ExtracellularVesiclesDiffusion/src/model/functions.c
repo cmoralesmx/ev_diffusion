@@ -149,19 +149,6 @@ __FLAME_GPU_FUNC__ int output_secretory_cell_location(xmachine_memory_SecretoryC
 }
 
 
-//__device__ float perpendicular(float vec_x, float vec_y, float length_vec, int component=0) {
-//	float x, y;
-//	if (length_vec > 0) {
-//		x = vec_y * (1 / length_vec);
-//		y = -vec_x * (1 / length_vec);
-//	}
-//	else {
-//		x = 0;// = make_float2(0, 0);
-//		y = 0;
-//	}
-//	return component == 0 ? x : y;
-//}
-
 __device__ float dotprod(float x1, float y1, float x2, float y2) {
 	return x1*x2 + y1*y2;
 }
@@ -170,6 +157,57 @@ __device__ float vlength(float x, float y) {
 	return sqrt(x*x + y*y);
 }
 
+// https://github.com/takagi/cl-cuda/blob/master/include/float4.h
+__device__ float2 float2_add(float2 a, float2 b)
+{
+	return make_float2(a.x + b.x, a.y + b.y);
+}
+__device__ float4 float4_add(float4 a, float4 b)
+{
+	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);
+}
+
+__device__ float2 float2_sub(float2 a, float2 b)
+{
+	return make_float2(a.x - b.x, a.y - b.y);
+}
+__device__ float4 float4_sub(float4 a, float4 b)
+{
+	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w);
+}
+
+__device__ float2 float2_scale(float2 a, float k)
+{
+	return make_float2(a.x * k, a.y * k);
+}
+__device__ float4 float4_scale(float4 a, float k)
+{
+	return make_float4(a.x * k, a.y * k, a.z * k, a.w * k);
+}
+__device__ float float4_dot(float4 a, float4 b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+}
+
+/*
+Scales b by scale and adds it to a
+*/
+__device__ float2 add_scaled(float2 a, float2 b, float scale) {
+	return float2_add(a, float2_scale(b, scale));
+	//return make_float2(vec1.x + vec2.x * scale, vec1.y + vec2.y * scale);
+}
+__device__ float4 add_scaled(float4 a, float4 b, float scale) {
+	return float4_add(a, float4_scale(b, scale));
+	//return make_float2(vec1.x + vec2.x * scale, vec1.y + vec2.y * scale);
+}
+
+__device__ float2 parallel(float vec_x, float vec_y, float u) {
+	float factor = (u / vlength(vec_x, vec_y));
+	return make_float2(vec_x * factor, vec_y * factor);
+}
+/*
+Returns the length of the projection of vector A in the direction of vector B
+*/
 __device__ float projection(float a_x, float a_y, float b_x, float b_y) {
 	float length = vlength(a_x, a_y);
 	float lengthVec = vlength(b_x, b_y);
@@ -178,10 +216,20 @@ __device__ float projection(float a_x, float a_y, float b_x, float b_y) {
 	return (a_x * b_x + a_y * b_y) / lengthVec;
 }
 
-__device__ float2 parallel(float vec_x, float vec_y, float u) {
-	float factor = (u / vlength(vec_x, vec_y));
-	return make_float2(vec_x * factor, vec_y * factor);
+/*
+Returns a vector parallel to v2 with the length of the projection of v2 in v1
+project : function(vec) {
+	return vec.para(this.projection(vec));
 }
+*/
+__device__ float2 project(float2 v1, float2 v2) {
+	float mag = projection(v1.x, v1.y, v2.x, v2.y);
+	return parallel(v2.x, v2.y, mag);
+}
+__device__ float2 project(float v1x, float v1y, float v2x, float v2y) {
+	return project(make_float2(v1x, v1y), make_float2(v2x, v2y));
+}
+
 
 __device__ float4 vectors_from_ev_to_wall_endpoints(xmachine_memory_EV* agent, const float & p1_x, const float & p1_y,
 	const float & p2_x, const float & p2_y) {
@@ -200,7 +248,6 @@ __device__ float2 perpendicular_distance_from_ev_to_wall(float4 ev_wall, float p
 		ev_wall.y + cell_direction_y_unit * -proj1
 	);
 }
-
 
 // solves direct collisions between EV and segments
 __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_dir_x, 
@@ -734,7 +781,7 @@ Current Ev is the EV1 in collision message.
 Current Ev in the EV2 in collision message.
 As a single message is generated per collisison, we must use it to compensate both EVs involved
 */
-__FLAME_GPU_FUNC__ int ev_collision_resolution(xmachine_memory_EV* agent, xmachine_message_ev_collision_list* ev_collision_messages){
+__FLAME_GPU_FUNC__ int ev_collision_resolution_old(xmachine_memory_EV* agent, xmachine_message_ev_collision_list* ev_collision_messages){
 	float dmin, cs, sc, vp1, vp2, ddt, dx, dy, ax, ay, distance, va1, va2, vb, vaP;
 
 	// fetch the message where this EV is involved in the collision
@@ -796,8 +843,6 @@ __FLAME_GPU_FUNC__ int ev_collision_resolution(xmachine_memory_EV* agent, xmachi
 			va2 = message->ev2_vx * ax + message->ev2_vy * ay;
 			// New velocities in these axes(after collision)
 
-			float vaP;
-
 			if (message->ev1_id == agent->id) {
 				float one_plus_mass1_div_mass2 = 1 + message->ev1_mass / message->ev2_mass;
 				vaP = va1 + 2 * (va2 - va1) / (one_plus_mass1_div_mass2 == 0 ? FLT_MIN : one_plus_mass1_div_mass2);
@@ -818,6 +863,79 @@ __FLAME_GPU_FUNC__ int ev_collision_resolution(xmachine_memory_EV* agent, xmachi
 	}
 	return 0;
 }
+
+/*
+Computes the new position and velocity after a collision for an agent.
+It can compute the values for two agents involved, however, we can only update one
+active agent at a time
+*/
+__device__ float4 evev_collision_solver(float2 ev1_loc, float2 ev1_velo, float ev1_mass_ag, 
+	float2 ev2_loc, float2 ev2_velo, float ev2_mass_ag, float min_distance, float2 dist, float dist_length) {
+	// normal velocity vectors just before the impact
+	float2 normal_velocity1 = project(ev1_velo, dist);
+	float2 normal_velocity2 = project(ev2_velo, dist);
+	// tangential velocity vectors
+	float2 tangent_velocity1 = float2_sub(ev1_velo, normal_velocity1);
+	//float2 tangent_velocity2 = ev2_velo - normal_velocity2;
+
+	// move particles so that they just touch
+	float L = min_distance - dist_length;
+	float2 normal_velo_subtracted = float2_sub(normal_velocity1, normal_velocity2);
+	float vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
+	float2 new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, -L / vrel);
+	//float2 new_ev2_loc = add_scaled(ev2_loc, normal_velocity2, -L/vrel);
+
+	// normal velocity components after the impact
+	float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);
+	float u2 = projection(normal_velocity2.x, normal_velocity2.y, dist.x, dist.y);
+	float v1 = ((ev1_mass_ag - ev2_mass_ag)*u1 + 2 * ev2_mass_ag*u2) / (ev1_mass_ag + ev2_mass_ag);
+	//float v2 = ((ev2_mass_ag - ev1_mass_ag)*u2+2*ev1_mass_ag*u1) / (ev1_mass_ag + ev2_mass_ag)
+
+	normal_velocity1 = parallel(dist.x, dist.y, v1);
+	//normal_velocity2 = parallel(dist, v2);
+
+	float2 new_vel1 = float2_add(normal_velocity1, tangent_velocity1);
+	//float2 new_vel2 = normal_velocity2 + tangent_velocity2;
+
+	return make_float4(new_ev1_loc.x, new_ev1_loc.y, new_vel1.x, new_vel1.y);
+}
+
+__FLAME_GPU_FUNC__ int ev_collision_resolution(xmachine_memory_EV* agent, xmachine_message_ev_collision_list* ev_collision_messages) {
+	//float dmin, cs, sc, vp1, vp2, ddt, dx, dy, ax, ay, distance, va1, va2, vb, vaP;
+
+	// fetch the message where this EV is involved in the collision
+	xmachine_message_ev_collision* message = get_first_ev_collision_message(ev_collision_messages);
+	while (message) {
+		if (message->ev1_id == agent->id && message->ev2_id == agent->closest_ev_id) {
+			// we solve the collision for the first agent
+			float2 dist = make_float2(message->ev1_x - message->ev2_x, message->ev1_y - message->ev2_y);
+			float4 new_values = evev_collision_solver(
+				make_float2(message->ev1_x, message->ev1_y), make_float2(message->ev1_vx, message->ev1_vy), message->ev1_mass,
+				make_float2(message->ev2_x, message->ev2_y), make_float2(message->ev2_vx, message->ev2_vy), message->ev2_mass, 
+				message->ev1_r_um + message->ev2_r_um, dist, vlength(dist.x, dist.y));
+			agent->x = new_values.x;
+			agent->y = new_values.y;
+			agent->vx = new_values.z;
+			agent->vy = new_values.w;
+			
+		} else if (message->ev2_id == agent->id && message->ev1_id == agent->closest_ev_id) {
+			// we solve the collision for the second agent
+			float2 dist = make_float2(message->ev2_x - message->ev1_x, message->ev2_y - message->ev1_y);
+			float4 new_values = evev_collision_solver(
+				make_float2(message->ev2_x, message->ev2_y), make_float2(message->ev2_vx, message->ev2_vy), message->ev2_mass, 
+				make_float2(message->ev1_x, message->ev1_y), make_float2(message->ev1_vx, message->ev1_vy), message->ev1_mass,
+				message->ev1_r_um + message->ev2_r_um, dist, vlength(dist.x, dist.y));
+			agent->x = new_values.x;
+			agent->y = new_values.y;
+			agent->vx = new_values.z;
+			agent->vy = new_values.w;
+		}
+		message = get_next_ev_collision_message(message, ev_collision_messages);
+	}
+	return 0;
+}
+
+
 
 /**
 Checks any possible collision with another EV
