@@ -45,6 +45,7 @@ GLuint vaoIdSecretory;
 GLuint vaoIdCiliary;
 cudaGraphicsResource *CGRsecretory, *CGRciliary;
 bool display_secretory = true;
+bool evPts = true;
 
 //Simulation output buffers/textures
 cudaGraphicsResource_t EV_default_cgr;
@@ -63,14 +64,14 @@ GLuint ciliary_shaderProgram;
 // bo variables
 GLuint sphereVerts;
 
-Shader *evShader;
+Shader *evPtsShader, *evGeoShader;
 Shader *secretoryShader;Shader *ciliaryShader;
 
 // mouse controls
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
 float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -VIEW_DISTANCE;  // This parameter comes from the visualisation.h file
+//float translate_z = -VIEW_DISTANCE;  // This parameter comes from the visualisation.h file
 
 // camera movement
 const float DEFAULT_OFFSET_X = 0.0f, DEFAULT_OFFSET_Y = 0.0f, DEFAULT_ZOOM_LEVEL = -VIEW_DISTANCE;
@@ -194,7 +195,7 @@ void initVisualisation()
 	glutMotionFunc(motion);
 
 	glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
-		evShader = new Shader("./shaders/ev_vs.glsl", "./shaders/ev_fs.glsl");	secretoryShader = new Shader("./shaders/secretory_vs.glsl", "./shaders/cells_fs.glsl");	ciliaryShader = new Shader("./shaders/ciliary_vs.glsl", "./shaders/cells_fs.glsl");
+		evPtsShader = new Shader("./shaders/ev_points_vs.glsl", "./shaders/ev_points_fs.glsl");	evGeoShader = new Shader("./shaders/ev_spheres_vs.glsl", "./shaders/ev_spheres_fs.glsl", "./shaders/ev_spheres_gs.glsl");	secretoryShader = new Shader("./shaders/cells_secretory_vs.glsl", "./shaders/cells_all_fs.glsl");	ciliaryShader = new Shader("./shaders/cells_ciliary_vs.glsl", "./shaders/cells_all_fs.glsl");
 	
 	// create VBO's
 	createVBO(&sphereVerts, get_agent_EV_MAX_count() * sizeof(glm::vec3));
@@ -407,8 +408,14 @@ void display()
 
 	//Draw EV Agents in default state
 	if (get_agent_EV_default_count() > 0) {
-		evShader->use();
-		evShader->setMat4("mvp", mvp);
+		if (evPts) {
+			evPtsShader->use();
+			evPtsShader->setMat4("mvp", mvp);
+		}
+		else {
+			evGeoShader->use();
+			evPtsShader->setMat4("mvp", mvp);
+		}
 
 		glBindBuffer(GL_ARRAY_BUFFER, sphereVerts);
 		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
@@ -507,30 +514,30 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 
 	case(75) :
 	case(107): // xoom in x 10 - k or K
-		translate_z += 10.0;
+		//translate_z += 10.0;
 		zoom_level += 10.0;
-		printf("zoom in: translate_z=%f\n", translate_z);
+		//printf("zoom in: translate_z=%f\n", translate_z);
 		break;
 	case(73) :
 	case(105) :
 			  // zoom in - I or i
-			  translate_z += 1.0;
+			  //translate_z += 1.0;
 			  zoom_level += 1.0;
-			  printf("zoom in: translate_z=%f\n", translate_z);
+			  //printf("zoom in: translate_z=%f\n", translate_z);
 		break;
 
 	case(76) :
 	case(108): // zoom out x10 - l or L
-		translate_z -= 10.0;
+		//translate_z -= 10.0;
 		zoom_level -= 10.0;
-		printf("zoom out: translate_z=%f\n", translate_z);
+		//printf("zoom out: translate_z=%f\n", translate_z);
 		break;
 	case(79) :
 	case(111) :
 			  // zoom out - O or o
-			  translate_z -= 1.0;
+			  //translate_z -= 1.0;
 			  zoom_level -= 1.0;
-			  printf("zoom out: translate_z=%f\n", translate_z);
+			  //printf("zoom out: translate_z=%f\n", translate_z);
 		break;
 
 		// P == 80, p == 112
@@ -541,6 +548,11 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 			  else
 				  printf("paused\n");
 		paused = !paused;
+		break;
+		// E == 69, e == 101
+	case(69):
+	case(101):
+		evPts = !evPts;
 		break;
 		// Esc == 27
 	case(27) :
@@ -595,11 +607,11 @@ void motion(int x, int y)
 	dy = (float)(y - mouse_old_y);
 
 	if (mouse_buttons & 1) {
-		rotate_x += dy * 0.2f;
-		rotate_y += dx * 0.2f;
+		offset_y += dy * 0.2f;
+		offset_x += dx * 0.2f;
 	}
 	else if (mouse_buttons & 4) {
-		translate_z += (float)(dy * VIEW_DISTANCE * 0.001);
+		zoom_level += (float)(dy * VIEW_DISTANCE * 0.001);
 	}
 
 	mouse_old_x = x;
