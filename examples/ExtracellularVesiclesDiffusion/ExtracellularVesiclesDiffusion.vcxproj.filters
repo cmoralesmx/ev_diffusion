@@ -35,6 +35,9 @@
     <ClInclude Include="src\visualisation\myVisualisation.h">
       <Filter>visualisation</Filter>
     </ClInclude>
+    <ClInclude Include="src\visualisation\shader_s.h">
+      <Filter>visualisation</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Xml Include="..\..\FLAMEGPU\templates\FLAMEGPU_kernals.xslt">

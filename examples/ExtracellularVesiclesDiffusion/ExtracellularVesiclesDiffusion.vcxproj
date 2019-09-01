@@ -240,6 +240,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </ClInclude>
     <ClInclude Include="src\model\textureAccess.h" />
     <ClInclude Include="src\visualisation\myVisualisation.h" />
+    <ClInclude Include="src\visualisation\shader_s.h" />
     <ClInclude Include="src\visualisation\visualisation.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release_Console|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug_Visualisation|x64'">true</ExcludedFromBuild>
