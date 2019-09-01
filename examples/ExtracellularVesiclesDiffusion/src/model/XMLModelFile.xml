@@ -41,22 +41,40 @@
         <description>Value needed for computing the diffusion rate</description>
         <defaultValue>4.0473766476e-21</defaultValue>
       </gpu:variable>
-      <!-- const_water_viscosity -->
+      <!-- const_water_dynamic_viscosity -->
       <gpu:variable>
         <type>float</type>
-        <name>const_water_viscosity</name>
+        <name>const_water_dynamic_viscosity_pas</name>
         <description>
-          Dynamic viscosity of water at 20C, source http://www.viscopedia.com/viscosity-tables/substances/water/
+          At 20C, source http://www.viscopedia.com/viscosity-tables/substances/water/
+          Value used to compute the diffusion coefficient of new EVs
+          In Pascal-seconds
         </description>
-        <!-- Other possible values for 21-25C are: 
-        0.0009775, 0.0009544, 0.0009321, 0.0009107, 0.00089 -->
         <defaultValue>0.0010016f</defaultValue>
       </gpu:variable>
-      <!-- const_6_pi_viscosity -->
+      <!-- const_water_kinematic_viscosity -->
       <gpu:variable>
         <type>float</type>
-        <name>const_6_pi_viscosity</name>
-        <description>Value required for computing viscosity and drag</description>
+        <name>const_water_kinematic_viscosity_kg_ums</name>
+        <description>
+          A measure of inherent resistance to flow when no external force, except gravity, is acting on the fluid.
+          Value at 20C, source http://www.viscopedia.com/viscosity-tables/substances/water/
+          Used to compute the drag force acting on the EVs at collision time.
+          In Kg/um.s: 1003, In kg/m.s: 0.001003f
+        </description>
+        <defaultValue>1003</defaultValue>
+      </gpu:variable>
+      <!-- const_6_pi_dynamic_viscosity -->
+      <gpu:variable>
+        <type>float</type>
+        <name>const_6_pi_dynamic_viscosity</name>
+        <description>precomputed value required for computing diffusion rate. Value: -6*pi*dyn_visc</description>
+      </gpu:variable>
+      <!-- const_6_pi_kinematic_viscosity -->
+      <gpu:variable>
+        <type>float</type>
+        <name>const_6_pi_kinematic_viscosity</name>
+        <description>precomputed value required for computing drag. Value: -6*pi*kin_visc</description>
       </gpu:variable>
       <!-- const_boltzmann_x_temp -->
       <gpu:variable>
@@ -439,11 +457,22 @@
           <description>The component on Y of velocity_um</description>
           <defaultValue>0</defaultValue>
         </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>bm_impulse_t_left</name>
+          <description></description>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
         
         <gpu:variable>
           <type>float</type>
           <name>mass_kg</name>
           <description>Mass of the vesicle in KG</description>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>mass_ag</name>
+          <description>Mass of the vesicle in attograms</description>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -558,7 +587,7 @@
             <rhs>
               <value>0</value>
             </rhs>
-            <gpu:maxItterations>10000000</gpu:maxItterations>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
             <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
           </gpu:globalCondition>
           
@@ -570,118 +599,59 @@
           <name>secretory_cell_collision_resolution</name>
           <description>Corrects the position of an EV as a result of colliding with a cell. This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp; (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
           <currentState>default</currentState>
-          <nextState>collision_resolved</nextState>
+          <nextState>default</nextState>
           <inputs>
             <gpu:input>
               <messageName>secretory_cell_collision</messageName>
             </gpu:input>
           </inputs>
-          <!-- check there is a cell collision only or it happens before the ev collision -->
+          <!-- check there is a secretory_cell_collision only or it happens before the ev collision -->
           <condition>
-	          <lhs>
-		          <condition>
-			          <lhs>
-				          <condition><lhs><agentVariable>closest_secretory_cell_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-			          </lhs>
-			          <operator>&amp;&amp;</operator>
-			          <rhs>
-				          <condition>
-					          <lhs>
-						          <!-- NONE -->
-						          <condition>
-							          <lhs>
-								          <condition><lhs><agentVariable>closest_ev_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator> 
-							          <rhs>
-								          <condition><lhs><agentVariable>closest_ciliary_cell_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-							          </rhs>
-						          </condition>
-						          <!-- END NONE -->
-					          </lhs>
-					          <operator>||</operator>
-					          <rhs>
-					          <!-- ALL -->
-						          <condition>
-							          <lhs>
-								          <condition>
-									          <lhs>
-										          <condition><lhs><agentVariable>closest_ev_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-									          </lhs>
-									          <operator>&amp;&amp;</operator>
-									          <rhs>
-										          <condition><lhs><agentVariable>closest_ev_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_secretory_cell_distance</agentVariable></rhs></condition>
-									          </rhs>
-								          </condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator>
-							          <rhs>
-								          <condition>
-									          <lhs>
-										          <condition><lhs><agentVariable>closest_ciliary_cell_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-									          </lhs>
-									          <operator>&amp;&amp;</operator>
-									          <rhs>
-										          <condition><lhs><agentVariable>closest_ciliary_cell_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_secretory_cell_distance</agentVariable></rhs></condition>
-									          </rhs>
-								          </condition>
-							          </rhs>
-						          </condition>
-						          <!-- END ALL -->
-					          </rhs>
-				          </condition>
-			          </rhs>
-		          </condition>
-	          </lhs>
-	          <operator>||</operator>
-	          <rhs>
-		          <condition>
-			          <lhs>
-			          <!-- 3-way 1 -->
-				          <condition>
-					          <lhs>
-						          <condition>
-							          <lhs>
-								          <condition><lhs><agentVariable>closest_ciliary_cell_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator> 
-							          <rhs>
-								          <condition><lhs><agentVariable>closest_ciliary_cell_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_secretory_cell_distance</agentVariable></rhs></condition>
-							          </rhs>
-						          </condition>
-					          </lhs>
-					          <operator>&amp;&amp;</operator> 
-					          <rhs>
-						          <condition><lhs><agentVariable>closest_ev_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-					          </rhs>
-				          </condition>
-			          <!-- /3-way 1 -->
-			          </lhs>
-			          <operator>||</operator>
-			          <rhs>
-			          <!-- 3-way 2 -->
-				          <condition>
-					          <lhs>
-						          <condition>
-							          <lhs>
-								          <condition><lhs><agentVariable>closest_ev_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator> 
-							          <rhs>
-								          <condition><lhs><agentVariable>closest_ev_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_secretory_cell_distance</agentVariable></rhs></condition>
-							          </rhs>
-						          </condition>
-					          </lhs>
-					          <operator>&amp;&amp;</operator>
-					          <rhs>
-						          <condition><lhs><agentVariable>closest_ciliary_cell_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-					          </rhs>
-				          </condition>
-			          <!-- /3-way 2 -->
-			          </rhs>
-		          </condition>
-	          </rhs>
-          </condition>
+            <!-- secretory_cell_collision -->
+			        <lhs>
+				        <condition><lhs><agentVariable>closest_secretory_cell_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
+			        </lhs>
+			        <operator>&amp;&amp;</operator>
+			        <rhs>
+				        <condition>
+                  <!-- NO other collision involves this agent  -->
+					        <lhs>
+                    <condition><lhs><agentVariable>closest_ciliary_cell_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
+					        </lhs>
+                  <!-- END No other collision involves this agent -->
+					        <operator>||</operator>
+                  <!-- this collision happened first -->
+                  <rhs>
+						        <condition>
+                      <lhs>
+                        <condition>
+                          <lhs>
+                            <agentVariable>closest_ciliary_cell_id</agentVariable>
+                          </lhs>
+                          <operator>&gt;</operator>
+                          <rhs>
+                            <value>-1.0f</value>
+                          </rhs>
+                        </condition>
+                      </lhs>
+                      <operator>&amp;&amp;</operator>
+                      <rhs>
+                        <condition>
+                          <lhs>
+                            <agentVariable>closest_ciliary_cell_distance</agentVariable>
+                          </lhs>
+                          <operator>&gt;</operator>
+                          <rhs>
+                            <agentVariable>closest_secretory_cell_distance</agentVariable>
+                          </rhs>
+                        </condition>
+                      </rhs>
+						        </condition>
+					        </rhs>
+                  <!-- END this collision happened first -->
+				        </condition>
+			        </rhs>
+		        </condition>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
@@ -712,7 +682,7 @@
             <rhs>
               <value>0</value>
             </rhs>
-            <gpu:maxItterations>10000000</gpu:maxItterations>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
             <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
           </gpu:globalCondition>
           
@@ -724,16 +694,15 @@
           <name>ciliary_cell_collision_resolution</name>
           <description>Corrects the position of an EV as a result of colliding with a ciliary cell. This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp; (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
           <currentState>default</currentState>
-          <nextState>collision_resolved</nextState>
+          <nextState>default</nextState>
           <inputs>
             <gpu:input>
               <messageName>ciliary_cell_collision</messageName>
             </gpu:input>
           </inputs>
-          <!-- check there is a cell collision only or it happens before the ev collision -->
-          <condition>
-	          <lhs>
+          <!-- check there is a cell collision only or it happens before others -->
 		          <condition>
+                <!-- ciliary cell collision -->
 			          <lhs>
 				          <condition><lhs><agentVariable>closest_ciliary_cell_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
 			          </lhs>
@@ -741,101 +710,52 @@
 			          <rhs>
 				          <condition>
 					          <lhs>
-						          <!-- NONE -->
-						          <condition>
-							          <lhs>
-								          <condition><lhs><agentVariable>closest_ev_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator> 
-							          <rhs>
-								          <condition><lhs><agentVariable>closest_secretory_cell_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-							          </rhs>
-						          </condition>
-						          <!-- END NONE -->
+						          <!-- NO other collision -->
+                      <condition>
+                        <lhs>
+                          <agentVariable>closest_secretory_cell_id</agentVariable>
+                        </lhs>
+                        <operator>&lt;</operator>
+                        <rhs>
+                          <value>0</value>
+                        </rhs>
+                      </condition>
+						          <!-- END NO other collision -->
 					          </lhs>
 					          <operator>||</operator>
 					          <rhs>
-					          <!-- ALL -->
-						          <condition>
-							          <lhs>
-								          <condition>
-									          <lhs>
-										          <condition><lhs><agentVariable>closest_ev_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-									          </lhs>
-									          <operator>&amp;&amp;</operator>
-									          <rhs>
-										          <condition><lhs><agentVariable>closest_ev_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_ciliary_cell_distance</agentVariable></rhs></condition>
-									          </rhs>
-								          </condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator>
-							          <rhs>
-								          <condition>
-									          <lhs>
-										          <condition><lhs><agentVariable>closest_secretory_cell_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-									          </lhs>
-									          <operator>&amp;&amp;</operator>
-									          <rhs>
-										          <condition><lhs><agentVariable>closest_secretory_cell_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_ciliary_cell_distance</agentVariable></rhs></condition>
-									          </rhs>
-								          </condition>
-							          </rhs>
-						          </condition>
-						          <!-- END ALL -->
+					            <!-- This is the closest collision  -->
+                      <condition>
+                        <lhs>
+                          <condition>
+                            <lhs>
+                              <agentVariable>closest_secretory_cell_id</agentVariable>
+                            </lhs>
+                            <operator>&gt;</operator>
+                            <rhs>
+                              <value>-1.0f</value>
+                            </rhs>
+                          </condition>
+                        </lhs>
+                        <operator>&amp;&amp;</operator>
+                        <rhs>
+                          <condition>
+                            <lhs>
+                              <agentVariable>closest_secretory_cell_distance</agentVariable>
+                            </lhs>
+                            <operator>&gt;</operator>
+                            <rhs>
+                              <agentVariable>closest_ciliary_cell_distance</agentVariable>
+                            </rhs>
+                          </condition>
+                        </rhs>
+                      </condition>
+						          <!-- END This is the closest collision -->
 					          </rhs>
 				          </condition>
 			          </rhs>
 		          </condition>
-	          </lhs>
-	          <operator>||</operator>
-	          <rhs>
-		          <condition>
-			          <lhs>
-			          <!-- 3-way 1 -->
-				          <condition>
-					          <lhs>
-						          <condition>
-							          <lhs>
-								          <condition><lhs><agentVariable>closest_ev_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator> 
-							          <rhs>
-								          <condition><lhs><agentVariable>closest_ev_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_ciliary_cell_distance</agentVariable></rhs></condition>
-							          </rhs>
-						          </condition>
-					          </lhs>
-					          <operator>&amp;&amp;</operator> 
-					          <rhs>
-						          <condition><lhs><agentVariable>closest_secretory_cell_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-					          </rhs>
-				          </condition>
-			          <!-- /3-way 1 -->
-			          </lhs>
-			          <operator>||</operator>
-			          <rhs>
-			          <!-- 3-way 2 -->
-				          <condition>
-					          <lhs>
-						          <condition>
-							          <lhs>
-								          <condition><lhs><agentVariable>closest_secretory_cell_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator> 
-							          <rhs>
-								          <condition><lhs><agentVariable>closest_secretory_cell_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_ciliary_cell_distance</agentVariable></rhs></condition>
-							          </rhs>
-						          </condition>
-					          </lhs>
-					          <operator>&amp;&amp;</operator>
-					          <rhs>
-						          <condition><lhs><agentVariable>closest_ev_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-					          </rhs>
-				          </condition>
-			          <!-- /3-way 2 -->
-			          </rhs>
-		          </condition>
-	          </rhs>
-          </condition>
+
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
@@ -865,7 +785,7 @@
             <rhs>
               <value>0</value>
             </rhs>
-            <gpu:maxItterations>1000000</gpu:maxItterations>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
             <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
           </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
@@ -876,118 +796,12 @@
           <name>ev_collision_resolution</name>
           <description>Corrects the position of an EV involved in a collision with another EV. This function applies to EVs with variable "closest_ev_id" > -1</description>
           <currentState>default</currentState>
-          <nextState>collision_resolved</nextState>
+          <nextState>default</nextState>
           <inputs>
             <gpu:input>
               <messageName>ev_collision</messageName>
             </gpu:input>
           </inputs>
-          <!-- check there is an ev collision only or it happens before the cell collision -->
-          <condition>
-	          <lhs>
-		          <condition>
-			          <lhs>
-				          <condition><lhs><agentVariable>closest_ev_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-			          </lhs>
-			          <operator>&amp;&amp;</operator>
-			          <rhs>
-				          <condition>
-					          <lhs>
-						          <!-- NONE -->
-						          <condition>
-							          <lhs>
-								          <condition><lhs><agentVariable>closest_secretory_cell_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator> 
-							          <rhs>
-								          <condition><lhs><agentVariable>closest_ciliary_cell_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-							          </rhs>
-						          </condition>
-						          <!-- END NONE -->
-					          </lhs>
-					          <operator>||</operator>
-					          <rhs>
-					          <!-- ALL -->
-						          <condition>
-							          <lhs>
-								          <condition>
-									          <lhs>
-										          <condition><lhs><agentVariable>closest_secretory_cell_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-									          </lhs>
-									          <operator>&amp;&amp;</operator>
-									          <rhs>
-										          <condition><lhs><agentVariable>closest_secretory_cell_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_ev_distance</agentVariable></rhs></condition>
-									          </rhs>
-								          </condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator>
-							          <rhs>
-								          <condition>
-									          <lhs>
-										          <condition><lhs><agentVariable>closest_ciliary_cell_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-									          </lhs>
-									          <operator>&amp;&amp;</operator>
-									          <rhs>
-										          <condition><lhs><agentVariable>closest_ciliary_cell_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_ev_distance</agentVariable></rhs></condition>
-									          </rhs>
-								          </condition>
-							          </rhs>
-						          </condition>
-						          <!-- END ALL -->
-					          </rhs>
-				          </condition>
-			          </rhs>
-		          </condition>
-	          </lhs>
-	          <operator>||</operator>
-	          <rhs>
-		          <condition>
-			          <lhs>
-			          <!-- 3-way 1 -->
-				          <condition>
-					          <lhs>
-						          <condition>
-							          <lhs>
-								          <condition><lhs><agentVariable>closest_ciliary_cell_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator> 
-							          <rhs>
-								          <condition><lhs><agentVariable>closest_ciliary_cell_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_ev_distance</agentVariable></rhs></condition>
-							          </rhs>
-						          </condition>
-					          </lhs>
-					          <operator>&amp;&amp;</operator> 
-					          <rhs>
-						          <condition><lhs><agentVariable>closest_secretory_cell_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-					          </rhs>
-				          </condition>
-			          <!-- /3-way 1 -->
-			          </lhs>
-			          <operator>||</operator>
-			          <rhs>
-			          <!-- 3-way 2 -->
-				          <condition>
-					          <lhs>
-						          <condition>
-							          <lhs>
-								          <condition><lhs><agentVariable>closest_secretory_cell_id</agentVariable></lhs><operator>&gt;</operator><rhs><value>-1.0f</value></rhs></condition>
-							          </lhs>
-							          <operator>&amp;&amp;</operator> 
-							          <rhs>
-								          <condition><lhs><agentVariable>closest_secretory_cell_distance</agentVariable></lhs><operator>&gt;</operator><rhs><agentVariable>closest_ev_distance</agentVariable></rhs></condition>
-							          </rhs>
-						          </condition>
-					          </lhs>
-					          <operator>&amp;&amp;</operator>
-					          <rhs>
-						          <condition><lhs><agentVariable>closest_ciliary_cell_id</agentVariable></lhs><operator>&lt;</operator><rhs><value>0</value></rhs></condition>
-					          </rhs>
-				          </condition>
-			          <!-- /3-way 2 -->
-			          </rhs>
-		          </condition>
-	          </rhs>
-          </condition>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>  
@@ -1005,7 +819,7 @@
             <rhs>
               <value>1</value>
             </rhs>
-            <gpu:maxItterations>1000000</gpu:maxItterations>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
             <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
           </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
@@ -1023,17 +837,17 @@
             <rhs>
               <value>2</value>
             </rhs>
-            <gpu:maxItterations>1000000</gpu:maxItterations>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
             <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
           </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>true</gpu:RNG>
         </gpu:function>
         
-        <!-- reset agent state after collision -->
+        <!-- reset agent state in preparation to execute the next simulation step -->
         <gpu:function>
           <name>reset_state</name>
-          <currentState>collision_resolved</currentState>
+          <currentState>default</currentState>
           <nextState>default</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1091,6 +905,11 @@
         <gpu:variable>
           <type>float</type>
           <name>mass_kg</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>mass_ag</name>
+          <description>Mass of the vesicle in attograms</description>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -1193,13 +1012,13 @@
       
       </variables>
       <gpu:partitioningSpatial>
-        <gpu:radius>2</gpu:radius>
+        <gpu:radius>4</gpu:radius>
         <gpu:xmin>0</gpu:xmin>
         <gpu:xmax>3000</gpu:xmax>
         <gpu:ymin>0</gpu:ymin>
         <gpu:ymax>4000</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
-        <gpu:zmax>2</gpu:zmax>
+        <gpu:zmax>4</gpu:zmax>
       </gpu:partitioningSpatial>
       <gpu:bufferSize>1048576</gpu:bufferSize>
     </gpu:message>
@@ -1283,13 +1102,13 @@
         </gpu:variable>
       </variables>
       <gpu:partitioningSpatial>
-        <gpu:radius>2</gpu:radius>
+        <gpu:radius>4</gpu:radius>
         <gpu:xmin>0</gpu:xmin>
         <gpu:xmax>3000</gpu:xmax>
         <gpu:ymin>0</gpu:ymin>
         <gpu:ymax>4000</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
-        <gpu:zmax>2</gpu:zmax>
+        <gpu:zmax>4</gpu:zmax>
       </gpu:partitioningSpatial>
       <gpu:bufferSize>4194304</gpu:bufferSize>
     </gpu:message>
@@ -1532,16 +1351,7 @@
       </gpu:layerFunction>
     </layer>
     
-    <!-- New EVs secretion/generation -->
-    <layer>
-      <gpu:layerFunction><name>secrete_ev</name></gpu:layerFunction>
-    </layer>
-    <!-- Output message to communicate the boundaries positions (ciliary cells, secretory cells) -->
-    <layer>
-      <gpu:layerFunction><name>output_ciliary_cell_location</name></gpu:layerFunction>
-      <gpu:layerFunction><name>output_secretory_cell_location</name></gpu:layerFunction>
-    </layer>
-    <!-- Compute the velocity of the particle for the next step -->
+    <!-- Compute the velocity of the particle for this step -->
     <layer>
       <!-- due to the effects of brownian motion -->
       <gpu:layerFunction>
@@ -1550,11 +1360,26 @@
       <gpu:layerFunction>
         <name>brownian_movement_2d</name>
       </gpu:layerFunction>
+      <!-- New EVs secretion/generation -->
+      <gpu:layerFunction>
+        <name>secrete_ev</name>
+      </gpu:layerFunction>
     </layer>
-    <!-- Compute the potential new position -->
+    <!-- Integrate the forces and compute the potential new position -->
     <layer>
       <gpu:layerFunction><name>move</name></gpu:layerFunction>
     </layer>
+
+    <!-- Output message to communicate the boundaries positions (ciliary cells, secretory cells) -->
+    <layer>
+      <gpu:layerFunction>
+        <name>output_ciliary_cell_location</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>output_secretory_cell_location</name>
+      </gpu:layerFunction>
+    </layer>
+    
     <!-- Check for collisions with boundaries (secretory -> ciliary cells)-->
     <layer>
       <gpu:layerFunction>
@@ -1567,18 +1392,8 @@
       </gpu:layerFunction>
     </layer>
     
-    <!-- Output current EVs position -->
-    <layer>
-      <gpu:layerFunction><name>output_data</name></gpu:layerFunction>
-    </layer>
-    
-    <!-- Check for inter-EV collisions -->
-    <layer>
-      <gpu:layerFunction><name>test_ev_collision</name></gpu:layerFunction>
-    </layer>
-    
     <!-- The following collision resolutions apply to the closest collision only-->
-    <!-- Solve collisions with boundaries (secretory -> ciliary cells) -->
+    <!-- Solve collisions with boundaries (secretory or ciliary cells) -->
     <layer>
       <gpu:layerFunction><name>secretory_cell_collision_resolution</name></gpu:layerFunction>
     </layer>
@@ -1586,10 +1401,26 @@
     <layer>      
       <gpu:layerFunction><name>ciliary_cell_collision_resolution</name></gpu:layerFunction>
     </layer>
-    <!-- Solve inter-EV collisions -->
+
+
+    <!-- Output current EVs position -->
     <layer>
-      <gpu:layerFunction><name>ev_collision_resolution</name></gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>output_data</name>
+      </gpu:layerFunction>
     </layer>
+
+    <!-- Check for inter-EV collisions (and solve them) -->
+    <layer>
+      <gpu:layerFunction>
+        <name>test_ev_collision</name>
+      </gpu:layerFunction>
+    </layer>
+
+    <!-- Solve inter-EV collisions -->
+    <!--<layer>
+      <gpu:layerFunction><name>ev_collision_resolution</name></gpu:layerFunction>
+    </layer>-->
     
   </layers>
 </gpu:xmodel>

@@ -20,7 +20,7 @@
 #define PAUSE_ON_START 0
 
 // constants
-const unsigned int WINDOW_WIDTH = 1600;
+const unsigned int WINDOW_WIDTH = 1200;
 const unsigned int WINDOW_HEIGHT = 900;
 
 //frustrum
@@ -30,10 +30,12 @@ const double FAR_CLIP = 4000;
 //Circle model fidelity
 const int SPHERE_SLICES = 8;
 const int SPHERE_STACKS = 8;
-const double SPHERE_RADIUS = 0.5;
+//const double SPHERE_RADIUS = 1;
+#define SPHERE_RADIUS 1
+#define SPHERE_RADIUS_OFFSET 0.25
 
 //Viewing Distance
-const double VIEW_DISTANCE = 500;
+const double VIEW_DISTANCE = 50;
 
 //light position
 GLfloat LIGHT_POSITION[] = {50.f, 50.f, 50.f, 50.f};

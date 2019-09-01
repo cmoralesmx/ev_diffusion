@@ -38,13 +38,13 @@
 #include <time.h>
 
 #include "myVisualisation.h"
-//#include "textureAccess.h"
 
 //#define radius 2.0
 
 // Declare global scope variables for host-based agent creation, so allocation of host data is only performed once.
 xmachine_memory_EV ** h_EV_AoS;
 unsigned int h_EV_AoS_MAX;
+unsigned int force_xml_dump = 0;
 
 __device__ __host__ float degrees(float radians){
 	return radians * (180 / M_PI);
@@ -70,14 +70,6 @@ __FLAME_GPU_STEP_FUNC__ void exitFunction(){
 	//printf("FlameGPU exit function, avg position is (%f, %f, %f)\n", x, y);
 }
 
-__FLAME_GPU_STEP_FUNC__ void print_iteration_no() {
-	//float x = reduce_EV_default_x_variable();
-	//float y = reduce_EV_default_y_variable();
-	//float z = reduce_EV_default_z_variable();
-	//printf("FlameGPU exit function, avg position is (%f, %f, %f)\n", x, y);
-	//printf("iter: %d\n", ++iteration_number);
-}
-
 __FLAME_GPU_INIT_FUNC__ void initialize_new_ev_structures(){
 	srand(time(NULL));
 
@@ -100,9 +92,13 @@ __FLAME_GPU_INIT_FUNC__ void initialize_new_ev_structures(){
 }
 
 __FLAME_GPU_INIT_FUNC__ void precompute_values() {
-	float val = 6 * M_PI * *get_const_water_viscosity();
-	set_const_6_pi_viscosity(&val);
-	printf("set_const_6_pi_viscosity: %f\n", val);
+	float val0 = 6 * M_PI * *get_const_water_dynamic_viscosity_pas();
+	set_const_6_pi_dynamic_viscosity(&val0);
+	printf("set_const_6_pi_dynamic_viscosity: %f\n", val0);
+
+	float val1 = 6 * M_PI * *get_const_water_kinematic_viscosity_kg_ums();
+	set_const_6_pi_kinematic_viscosity(&val1);
+	printf("set_const_6_pi_kinematic_viscosity: %f\n", val1);
 
 	float val2 = *get_const_Boltzmann() * *get_const_Temperature_K();
 	printf("boltzmann: %.35f\n", *get_const_Boltzmann());
@@ -113,12 +109,12 @@ __FLAME_GPU_INIT_FUNC__ void precompute_values() {
 /**
  * output_data FLAMEGPU Agent Function
  * Automatically generated using functions.xslt
- * @param agent Pointer to an agent structure of type xmachine_memory_EV. This represents a single agent instance and can be modified directly.
- * @param location_messages Pointer to output message list of type xmachine_message_location_list. Must be passed as an argument to the add_location_message function ??.
+ * @param agent Pointer to an agent structure of type xmachine_memory_EV. Represents an agent instance, can be modified directly.
+ * @param location_messages Pointer to output message list of type xmachine_message_location_list.
  */
 __FLAME_GPU_FUNC__ int output_data(xmachine_memory_EV* agent, xmachine_message_location_list* location_messages){
 	add_location_message(location_messages, agent->id, agent->x, agent->y,
-		agent->z, agent->radius_um, agent->mass_kg, agent->vx, agent->vy);
+		agent->z, agent->radius_um, agent->mass_kg, agent->mass_ag, agent->vx, agent->vy);
     return 0;
 }
 
@@ -184,6 +180,10 @@ __device__ float4 float4_scale(float4 a, float k)
 {
 	return make_float4(a.x * k, a.y * k, a.z * k, a.w * k);
 }
+__device__ float float2_dot(float2 a, float2 b)
+{
+	return a.x * b.x + a.y * b.y;
+}
 __device__ float float4_dot(float4 a, float4 b)
 {
 	return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
@@ -196,10 +196,10 @@ __device__ float2 add_scaled(float2 a, float2 b, float scale) {
 	return float2_add(a, float2_scale(b, scale));
 	//return make_float2(vec1.x + vec2.x * scale, vec1.y + vec2.y * scale);
 }
-__device__ float4 add_scaled(float4 a, float4 b, float scale) {
-	return float4_add(a, float4_scale(b, scale));
+//__device__ float4 add_scaled(float4 a, float4 b, float scale) {
+	//return float4_add(a, float4_scale(b, scale));
 	//return make_float2(vec1.x + vec2.x * scale, vec1.y + vec2.y * scale);
-}
+//}
 
 __device__ float2 parallel(float vec_x, float vec_y, float u) {
 	float factor = (u / vlength(vec_x, vec_y));
@@ -222,14 +222,21 @@ project : function(vec) {
 	return vec.para(this.projection(vec));
 }
 */
-__device__ float2 project(float2 v1, float2 v2) {
+__device__ float2 float2_project(float2 v1, float2 v2) {
 	float mag = projection(v1.x, v1.y, v2.x, v2.y);
 	return parallel(v2.x, v2.y, mag);
 }
 __device__ float2 project(float v1x, float v1y, float v2x, float v2y) {
-	return project(make_float2(v1x, v1y), make_float2(v2x, v2y));
+	return float2_project(make_float2(v1x, v1y), make_float2(v2x, v2y));
 }
 
+__device__ float2 force_drag(xmachine_memory_EV* agent) {
+	float vel_mag_ums = vlength(agent->vx, agent->vy); // in (um/s)
+	float2 vel_unit = make_float2(agent->vx / vel_mag_ums, agent->vy / vel_mag_ums);
+	// kinematic viscosity in kg/um.s
+	float factor = const_6_pi_kinematic_viscosity * agent->radius_um * vel_mag_ums;
+	return float2_scale(vel_unit, factor);
+}
 
 __device__ float4 vectors_from_ev_to_wall_endpoints(xmachine_memory_EV* agent, const float & p1_x, const float & p1_y,
 	const float & p2_x, const float & p2_y) {
@@ -243,6 +250,7 @@ __device__ float2 project_vectors_onto_wall(float4 ev_wall, float cell_direction
 }
 
 __device__ float2 perpendicular_distance_from_ev_to_wall(float4 ev_wall, float proj1, float cell_direction_x_unit, float cell_direction_y_unit) {
+	// add_scaled(ballp1, wdir.unit(), proj1*-1)
 	return make_float2(
 		ev_wall.x + cell_direction_x_unit * -proj1,
 		ev_wall.y + cell_direction_y_unit * -proj1
@@ -254,26 +262,25 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 	float cell_dir_y, float cell_direction_length, float perp_dist_x, float perp_dist_y,
 	float cell_unit_normal_x, float cell_unit_normal_y) {
 	// 1. angle between velocity and wall 
-	float angle = acosf(dotprod(agent->vx, agent->vy, cell_dir_x, cell_dir_y) / (vlength(agent->vx, agent->vy) * cell_direction_length));
+	float angle = acosf(dotprod(agent->vx, agent->vy, cell_dir_x, cell_dir_y) 
+		/ (vlength(agent->vx, agent->vy) * cell_direction_length));
 	// 2. reposition object
 	// var normal = wall.normal;
 	// 2a compute the perpendicular to the cell
 	float normal_x = cell_unit_normal_x;
 	float normal_y = cell_unit_normal_y;
-	//printf("wall normal x:%f y:%f\n", normal_x, normal_y);
-	// 2b scale the normal by -1 if needed
-	float d = dotprod(normal_x, normal_y, agent->vx, agent->vy);
-	if (d > 0) { normal_x *= -1.0; normal_y *= -1.0; }
+	// 2b scale the normal by -1 if needed (for tunneling tests)
+	//float dp = dotprod(normal_x, normal_y, agent->vx, agent->vy);
+	//if (dp > 0) { normal_x *= -1.0; normal_y *= -1.0; }
 
 	// 3. compute deltaS
 	// var deltaS = (obj.radius + dist.dotProduct(normal)) / Math.sin(angle);
-	float deltaS = (agent->radius_um + dotprod(perp_dist_x, perp_dist_y, normal_x, normal_y)) / sin(angle);
+	float dist_dp_normal = dotprod(perp_dist_x, perp_dist_y, normal_x, normal_y);
+	float deltaS = (agent->radius_um + dist_dp_normal) / sin(angle);
 
 	// 4. estimate what was the displacement = velocity parallel to delta
 	// var displ = obj.velo2D.para(deltaS);
 	float2 displ = parallel(agent->vx, agent->vy, deltaS);
-	//float displ_x = parallel(agent->vx, agent->vy, deltaS, 0);
-	//float displ_y = parallel(agent->vx, agent->vy, deltaS, 1);
 
 	// 5. update position by subtracting the displacement
 	// obj.pos2D = obj.pos2D.subtract(displ);
@@ -315,11 +322,12 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 }
 
 __device__  int solve_segment_end_point_collision(xmachine_memory_EV* agent, 
-	float ev_wall_pt_x, float ev_wall_pt_y, float cell_direction_length,
-	float dist_x, float dist_y) {
-	// bounce off endpoint wall_p1
-	float distp_x = agent->x - ev_wall_pt_x;
-	float distp_y = agent->y - ev_wall_pt_y;
+	float wall_pt_x, float wall_pt_y, float caller
+	//, float cell_direction_length, float dist_x, float dist_y
+) {
+	// bounce off endpoint wall_p
+	float distp_x = agent->x - wall_pt_x;
+	float distp_y = agent->y - wall_pt_y;
 	//var distp = obj.pos2D.subtract(pEndpoint);
 	//// move particle so that it just touches the endpoint			
 	//var L = obj.radius - distp.length();
@@ -327,24 +335,24 @@ __device__  int solve_segment_end_point_collision(xmachine_memory_EV* agent,
 	//obj.pos2D = obj.pos2D.addScaled(obj.velo2D, -L / vrel);
 	float L = agent->radius_um - vlength(distp_x, distp_y);
 	float vrel = vlength(agent->vx, agent->vy);
-	agent->x += (-L / vrel) * agent->vx;
-	agent->y += (-L / vrel) * agent->vy;
+	agent->x += agent->vx * (-L / vrel);
+	agent->y += agent->vy * (-L / vrel);
 
 	//// normal velocity vector just before the impact
 	//var normalVelo = obj.velo2D.project(distp);
-	float normalVelo = projection(agent->vx, agent->vy, distp_x, distp_y);
+	float2 normalVelo = project(agent->vx, agent->vy, distp_x, distp_y);
 	//// tangential velocity vector
 	//var tangentVelo = obj.velo2D.subtract(normalVelo);
-	float tangentVelo_x = agent->vx - normalVelo;
-	float tangentVelo_y = agent->vy - normalVelo;
+	float tangentVelo_x = agent->vx - normalVelo.x;
+	float tangentVelo_y = agent->vy - normalVelo.y;
 	//// normal velocity vector after collision
 	//normalVelo.scaleBy(-vfac);
 
 	//// final velocity vector after collision
 	//obj.velo2D = normalVelo.add(tangentVelo);
-	agent->vx = normalVelo + tangentVelo_x;
-	agent->vy = normalVelo + tangentVelo_y;
-	agent->velocity_ms = 666.f;
+	agent->vx = -1.0 * normalVelo.x + tangentVelo_x;
+	agent->vy = -1.0 * normalVelo.y + tangentVelo_y;
+	agent->velocity_ms = caller;
 	return 0;
 }
 
@@ -372,11 +380,11 @@ __FLAME_GPU_FUNC__ int secretory_cell_collision_resolution(xmachine_memory_EV* a
 			}
 			else if (abs(vlength(ev_wall_vectors.x, ev_wall_vectors.y)) < agent->radius_um) {
 				// collision with 1st end point
-				solve_segment_end_point_collision(agent, ev_wall_vectors.x, ev_wall_vectors.y, message->cell_direction_length, perp_dist.x, perp_dist.y);
+				solve_segment_end_point_collision(agent, message->p1_x, message->p1_y, 601.0);
 			}
 			else if (abs(vlength(ev_wall_vectors.z, ev_wall_vectors.w)) < agent->radius_um) {
 				// collision with 2nd end point
-				solve_segment_end_point_collision(agent, ev_wall_vectors.z, ev_wall_vectors.w, message->cell_direction_length, perp_dist.x, perp_dist.y);
+				solve_segment_end_point_collision(agent, message->p2_x, message->p2_y, 602.0);
 			}
 		}
 		message = get_next_secretory_cell_collision_message(message, secretory_cell_collision_messages);
@@ -402,19 +410,30 @@ __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* age
 			float2 perp_dist = perpendicular_distance_from_ev_to_wall(ev_wall_vectors, projections.x, message->cell_direction_x_unit, message->cell_direction_y_unit);
 
 			bool test_needed = (abs(projections.x) < message->cell_direction_length) && (abs(projections.y) < message->cell_direction_length);
+			bool tunneling = false;
 
-			if ((vlength(perp_dist.x, perp_dist.y) < agent->radius_um) && test_needed) {
+			/*
+			this check can be done by comparing the triangles described by the points
+			involved...
+			if (wall.side*dist.dotProduct(wall.normal) < 0){
+				testTunneling = true;
+			} else{
+				testTunneling = false;
+			}
+			*/
+
+			if ((vlength(perp_dist.x, perp_dist.y) < agent->radius_um || tunneling) && test_needed) {
 
 				solve_segment_collision(agent, message->cell_direction_x, message->cell_direction_y, message->cell_direction_length,
 					perp_dist.x, perp_dist.y, message->unit_normal_x, message->unit_normal_y);
 			}
 			else if (abs(vlength(ev_wall_vectors.x, ev_wall_vectors.y)) < agent->radius_um) {
 				// collision with 1st end point
-				solve_segment_end_point_collision(agent, ev_wall_vectors.x, ev_wall_vectors.y, message->cell_direction_length, perp_dist.x, perp_dist.y);
+				solve_segment_end_point_collision(agent, message->p1_x, message->p1_y, 603.0);
 			}
 			else if (abs(vlength(ev_wall_vectors.z, ev_wall_vectors.w)) < agent->radius_um) {
 				// collision with 2nd end point
-				solve_segment_end_point_collision(agent, ev_wall_vectors.z, ev_wall_vectors.w, message->cell_direction_length, perp_dist.x, perp_dist.y);
+				solve_segment_end_point_collision(agent, message->p2_x, message->p2_y, 604.0);
 			}
 		}
 		message = get_next_ciliary_cell_collision_message(message, ciliary_cell_collision_messages);
@@ -426,8 +445,9 @@ __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* age
 Computes the distance between a point (p0) and the segment of a line with end points (p1) and (p2).
 We get the vectors A = p0 - p1 and B = p2 - p1. 
 -param- is the scalar value that when multiplied by B gives you the point on the line closest to p0.
-A collision is only possible if the point is projecting on the segment. Otherwise, the agent may be 
-in collision with another segment first.
+A collision is possible if the point:
+	- is projecting on the segment, 
+	- is not yet proyecting on the segment but displacing towards the segment and within a shorter distance from the endpoints than its radius
 Modified from https://stackoverflow.com/a/6853926/3830240
 
 Returns
@@ -452,7 +472,7 @@ __device__ float4 point_to_line_segment_distance(float x, float y, float x1, flo
 	float len_sq = C * C + D * D; // sqrd magnitude of the line segment
 	float param = -1;
 	float xx = 0.f, yy = 0.f, dx, dy;
-	float projecting_on_segment = 0.0f;
+	//float projecting_on_segment = 0.0f;
 
 	if (len_sq != 0){ // in case of 0 length line
 		param = dot / len_sq; // ratio of the projected vectors over the length of the line segment
@@ -468,7 +488,7 @@ __device__ float4 point_to_line_segment_distance(float x, float y, float x1, flo
 	}
 	else {   // the point is projecting on the segment
 		// interpolate to find the closes point on the line segment
-		projecting_on_segment = 1.0f;
+		//projecting_on_segment = 1.0f;
 		xx = x1 + param * C;
 		yy = y1 + param * D;
 	}
@@ -477,7 +497,7 @@ __device__ float4 point_to_line_segment_distance(float x, float y, float x1, flo
 	dx = x - xx;
 	dy = y - yy;
 
-	result.x = projecting_on_segment;
+	result.x = param;
 	result.y = sqrt(dx * dx + dy * dy); // distance between p
 	result.z = xx;
 	result.w = yy;
@@ -501,22 +521,25 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 	float closest_cell_distance = 100.f;
 	float4 res;
 	float4 wall_direction;
-	float4 wall_normal;
+	float3 wall_normal;
+	float2 wall_unit_normal;
 	float4 wall_pts;
-	float wall_direction_length, wall_normal_length;
+	float wall_direction_length;
 
 	xmachine_message_secretory_cell_location* message = get_first_secretory_cell_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
 	while (message) {
-		// we only check for collisions if the EV is displacing in the same direction as the wall
+		// we only check for collisions if the EV: -is displacing in opposite or perpendicular direction to the wall
 		float dotProduct = dotprod(agent->vx, agent->vy, message->unit_normal_x, message->unit_normal_y);
 
-		if (dotProduct < 0) {
+		// the dot product will be negative for vectors in opposite directions and zero for those perpendicular to each other
+		if (dotProduct <= 0) {
 			// get the distance between an agent's new position and a cell
-			res = point_to_line_segment_distance(agent->x, agent->y, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
+			res = point_to_line_segment_distance(agent->x, agent->y,
+				message->p1_x, message->p1_y, message->p2_x, message->p2_y);
 
 			// if the ev new position is projecting over the segment and the distance to the segment < radius
-			if (res.x == 1.0f && res.y < agent->radius_um)
+			if (res.y < agent->radius_um)
 			{
 				if (res.y < closest_cell_distance)
 				{
@@ -533,10 +556,11 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 					// wall normal values
 					wall_normal.x = message->normal_x;
 					wall_normal.y = message->normal_y;
+					wall_normal.z = message->normal_length;
 					// wall unit normal values
-					wall_normal.z = message->unit_normal_x;
-					wall_normal.w = message->unit_normal_y;
-					wall_normal_length = message->normal_length;
+					wall_unit_normal.x = message->unit_normal_x;
+					wall_unit_normal.y = message->unit_normal_y;
+					
 
 					wall_pts.x = message->p1_x;
 					wall_pts.y = message->p1_y;
@@ -559,7 +583,7 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 			agent->closest_secretory_cell_id, agent->closest_secretory_cell_distance,
 			wall_pts.x, wall_pts.y, wall_pts.z, wall_pts.w, wall_direction.x, wall_direction.y,
 			wall_direction.z, wall_direction.w, wall_direction_length,
-			wall_normal.x, wall_normal.y, wall_normal.z, wall_normal.w, wall_normal_length);
+			wall_normal.x, wall_normal.y, wall_unit_normal.x, wall_unit_normal.y, wall_normal.z);
 	}
 	return 0;
 }
@@ -710,23 +734,25 @@ __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xm
 	float closest_cell_distance = 100.f;
 	float4 res;
 	float4 wall_direction;
-	float4 wall_normal;
+	float3 wall_normal;
+	float2 wall_unit_normal;
 	float4 wall_pts;
-	float wall_direction_length, wall_normal_length;
+	float wall_direction_length;
 
 	xmachine_message_ciliary_cell_location* message = get_first_ciliary_cell_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
 	while (message) {
-		// we only check for collisions if the EV is displacing in the same direction as the wall
+		// we only check for collisions if the EV: -is displacing in opposite or perpendicular direction to the wall
 		float dotProduct = dotprod(agent->vx, agent->vy, message->unit_normal_x, message->unit_normal_y);
 
-		// the dot product will only be negative for vectors in opposite directions
+		// the dot product will be negative for vectors in opposite directions and zero for those perpendicular to each other
 		if (dotProduct < 0) {
 			// get the distance between agent and cell
-			res = point_to_line_segment_distance(agent->x, agent->y, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
+			res = point_to_line_segment_distance(agent->x, agent->y,
+				message->p1_x, message->p1_y, message->p2_x, message->p2_y);
 
-			// if the ev is in collision route and the distance to segment < radius
-			if (res.x == 1.0f && res.y < agent->radius_um)
+			// if the distance to segment < radius
+			if (res.y < agent->radius_um)
 			{
 				//printf("ciliary res.x: %f res.y:%f radius_um:%f\n", res.x, res.y, agent->radius_um);
 				// save the reference if this is the first candidate collision
@@ -745,10 +771,10 @@ __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xm
 					// wall normal values
 					wall_normal.x = message->normal_x;
 					wall_normal.y = message->normal_y;
+					wall_normal.z = message->normal_length;
 					// wall unit normal values
-					wall_normal.z = message->unit_normal_x;
-					wall_normal.w = message->unit_normal_y;
-					wall_normal_length = message->normal_length;
+					wall_unit_normal.x = message->unit_normal_x;
+					wall_unit_normal.y = message->unit_normal_y;
 
 					wall_pts.x = message->p1_x;
 					wall_pts.y = message->p1_y;
@@ -769,7 +795,7 @@ __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xm
 			agent->closest_ciliary_cell_id, agent->closest_ciliary_cell_distance,
 			wall_pts.x, wall_pts.y, wall_pts.z, wall_pts.w, wall_direction.x, wall_direction.y,
 			wall_direction.z, wall_direction.w, wall_direction_length,
-			wall_normal.x, wall_normal.y, wall_normal.z, wall_normal.w, wall_normal_length);
+			wall_normal.x, wall_normal.y, wall_unit_normal.x, wall_unit_normal.y, wall_normal.z);
 	}
 	return 0;
 }
@@ -872,8 +898,8 @@ active agent at a time
 __device__ float4 evev_collision_solver(float2 ev1_loc, float2 ev1_velo, float ev1_mass_ag, 
 	float2 ev2_loc, float2 ev2_velo, float ev2_mass_ag, float min_distance, float2 dist, float dist_length) {
 	// normal velocity vectors just before the impact
-	float2 normal_velocity1 = project(ev1_velo, dist);
-	float2 normal_velocity2 = project(ev2_velo, dist);
+	float2 normal_velocity1 = float2_project(ev1_velo, dist);
+	float2 normal_velocity2 = float2_project(ev2_velo, dist);
 	// tangential velocity vectors
 	float2 tangent_velocity1 = float2_sub(ev1_velo, normal_velocity1);
 	//float2 tangent_velocity2 = ev2_velo - normal_velocity2;
@@ -882,6 +908,7 @@ __device__ float4 evev_collision_solver(float2 ev1_loc, float2 ev1_velo, float e
 	float L = min_distance - dist_length;
 	float2 normal_velo_subtracted = float2_sub(normal_velocity1, normal_velocity2);
 	float vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
+	//float2 new_ev1_loc = add_scaled(make_float2(0, 0), normal_velocity1, -L / vrel);
 	float2 new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, -L / vrel);
 	//float2 new_ev2_loc = add_scaled(ev2_loc, normal_velocity2, -L/vrel);
 
@@ -906,29 +933,20 @@ __FLAME_GPU_FUNC__ int ev_collision_resolution(xmachine_memory_EV* agent, xmachi
 	// fetch the message where this EV is involved in the collision
 	xmachine_message_ev_collision* message = get_first_ev_collision_message(ev_collision_messages);
 	while (message) {
-		if (message->ev1_id == agent->id && message->ev2_id == agent->closest_ev_id) {
+		if (message->ev1_id == agent->id 
+			//&& message->ev2_id == agent->closest_ev_id) {
+			){
 			// we solve the collision for the first agent
 			float2 dist = make_float2(message->ev1_x - message->ev2_x, message->ev1_y - message->ev2_y);
 			float4 new_values = evev_collision_solver(
 				make_float2(message->ev1_x, message->ev1_y), make_float2(message->ev1_vx, message->ev1_vy), message->ev1_mass,
 				make_float2(message->ev2_x, message->ev2_y), make_float2(message->ev2_vx, message->ev2_vy), message->ev2_mass, 
 				message->ev1_r_um + message->ev2_r_um, dist, vlength(dist.x, dist.y));
-			agent->x = new_values.x;
-			agent->y = new_values.y;
+			//agent->x = new_values.x;
+			//agent->y = new_values.y;
 			agent->vx = new_values.z;
 			agent->vy = new_values.w;
 			
-		} else if (message->ev2_id == agent->id && message->ev1_id == agent->closest_ev_id) {
-			// we solve the collision for the second agent
-			float2 dist = make_float2(message->ev2_x - message->ev1_x, message->ev2_y - message->ev1_y);
-			float4 new_values = evev_collision_solver(
-				make_float2(message->ev2_x, message->ev2_y), make_float2(message->ev2_vx, message->ev2_vy), message->ev2_mass, 
-				make_float2(message->ev1_x, message->ev1_y), make_float2(message->ev1_vx, message->ev1_vy), message->ev1_mass,
-				message->ev1_r_um + message->ev2_r_um, dist, vlength(dist.x, dist.y));
-			agent->x = new_values.x;
-			agent->y = new_values.y;
-			agent->vx = new_values.z;
-			agent->vy = new_values.w;
 		}
 		message = get_next_ev_collision_message(message, ev_collision_messages);
 	}
@@ -948,61 +966,68 @@ Otherwise, no message is produced and the ev agent will have the default values 
 */	
 __FLAME_GPU_FUNC__ int test_ev_collision(xmachine_memory_EV* agent, xmachine_message_location_list* location_messages, 
 	xmachine_message_location_PBM* partition_matrix, xmachine_message_ev_collision_list* ev_collision_messages){
-	int closest_ev_id = -1;
-	float closest_ev_distance = 10000.f;
-	float distance;
-	float radii = 0.0;
-	float ev2_mass, ev2_r_um, ev2_x, ev2_y, ev2_vx, ev2_vy;
+	
+	float distance, closest_ev_distance = 100.f;
+	float radii = 0.0, radius_to_radius;
+	float max_overlap = 0, overlap;
+
+	int ev2_id = -1;
+	float ev2_x, ev2_y, ev2_vx, ev2_vy, ev2_mass_ag;
+	float2 distance_vector;
+	float4 new_values;
 
 	xmachine_message_location* message = get_first_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
-	// Identify the closest EV colliding with this EV
-	while (message)
-	{
-		if (message->id != agent->id)
-		{
+	// This check could be improved by identifying and solving only the first collision involving this agent.
+	while (message)	{
+		if (message->id != agent->id){
 			// check for collision
 			distance = euclidean_distance(agent, message->x, message->y);
 			radii = agent->radius_um + message->radius_um;
 
-			if (distance <= radii)
-			{
-				if(closest_ev_id == -1){
-					closest_ev_id = message->id;
+			if (distance <= radii){
+				overlap = radii - distance;
+				if (ev2_id == -1 || overlap > max_overlap){
+					ev2_id = message->id;
 					closest_ev_distance = distance;
-
-					ev2_mass = message->mass_kg;
-					ev2_r_um = message->radius_um;
+					radius_to_radius = radii;
+					max_overlap = overlap;
+					distance_vector = make_float2(agent->x - message->x, agent->y - message->y);
 					ev2_x = message->x;
 					ev2_y = message->y;
 					ev2_vx = message->vx;
 					ev2_vy = message->vy;
-				}
-				else if (distance < closest_ev_distance){
-					closest_ev_id = message->id;
-					closest_ev_distance = distance;
-
-					ev2_mass = message->mass_kg;
-					ev2_r_um = message->radius_um;
-					ev2_x = message->x;
-					ev2_y = message->y;
-					ev2_vx = message->vx;
-					ev2_vy = message->vy;
+					ev2_mass_ag = message->mass_ag;
+					//ev2_radius_um = message->radius_um;
 				}
 			}
 		}
 		message = get_next_location_message(message, location_messages, partition_matrix);
 	}
-	// record the relevant data
-	
-	if (closest_ev_id != -1){
-		agent->closest_ev_id = closest_ev_id;
+	if (ev2_id != -1) {
+		new_values = evev_collision_solver(
+			make_float2(agent->x, agent->y), make_float2(agent->vx, agent->vy), agent->mass_ag,
+			make_float2(ev2_x, ev2_y), make_float2(ev2_vx, ev2_vy), ev2_mass_ag,
+			radius_to_radius, distance_vector, vlength(distance_vector.x, distance_vector.y));
+		// we store the current position as the previous and update the values accordingly
+		agent->x_1 = agent->x;
+		agent->y_1 = agent->y;
+		agent->x = new_values.x;
+		agent->y = new_values.y;
+		agent->vx = new_values.z;
+		agent->vy = new_values.w;
+
+		agent->closest_ev_id = ev2_id;
 		agent->closest_ev_distance = closest_ev_distance;
-		// write the corresponding collision_message
-		add_ev_collision_message(ev_collision_messages, agent->id, closest_ev_id, closest_ev_distance, 
-			agent->mass_kg, agent->radius_um, agent->x, agent->y, agent->vx, agent->vy, 
-			ev2_mass, ev2_r_um, ev2_x, ev2_y, ev2_vx, ev2_vy);
 	}
+	//if (closest_ev_id != -1){
+	//	
+	//	
+	//	// write the corresponding collision_message
+	//	add_ev_collision_message(ev_collision_messages, agent->id, closest_ev_id, closest_ev_distance, 
+	//		agent->mass_kg, agent->radius_um, agent->x, agent->y, agent->vx, agent->vy, 
+	//		ev2_mass, ev2_r_um, ev2_x, ev2_y, ev2_vx, ev2_vy);
+	//}
 	return 0;
 }
 
@@ -1032,7 +1057,7 @@ __FLAME_GPU_FUNC__ int brownian_movement_1d(xmachine_memory_EV* agent, RNG_rand4
 		r = sqrt(-2.0 * log(u1));
 		theta = 2 * M_PI * u2;
 		// the product of r * (cos|sin)(theta) becomes the displacement factor to use in this iteration
-		agent->vx = agent->velocity_ums * r * cos(theta);
+		agent->vx = agent->velocity_ums * r * cos(theta) * dt;
 	}
 	//agent->vx = agent->vx;
 	//agent->vy = agent->vy;
@@ -1049,19 +1074,25 @@ Due to limitations in FlameGPU, we sample both continuos numbers from the same R
 */
 __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
 	float u1, u2, r, theta; 
-	agent->bm_vx = 0;
-	agent->bm_vy = 0;
-	if (agent->age > dt * const_iterations_in_ballistic_displacement) {
-		u1 = rnd<CONTINUOUS>(rand48);
-		u2 = rnd<CONTINUOUS>(rand48);
-		// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
-		r = sqrt(-2.0 * log(u1)) * agent->velocity_ums; // computes the radius of a circumference.
-		theta = 2 * M_PI * u2; // computes the angle of rotation
-		agent->vx = r * cos(theta);
-		agent->vy = r * sin(theta);
-		// we also save the new values due to brownian motion for debugging/validationn purposes
-		agent->bm_vx = agent->vx;
-		agent->bm_vy = agent->vy;
+	//agent->bm_vx = 0;
+	//agent->bm_vy = 0;
+	if (agent->age > dt * const_iterations_in_ballistic_displacement){
+		if (agent->bm_impulse_t_left <= 0) {
+			u1 = rnd<CONTINUOUS>(rand48);
+			u2 = rnd<CONTINUOUS>(rand48);
+			agent->bm_impulse_t_left = 0;// rnd<CONTINUOUS>(rand48);
+			// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
+			r = sqrt(-2.0 * log(u1)) * agent->velocity_ums * dt; // computes the radius of a circumference smaller than velocity_ums.
+			theta = 2 * M_PI * u2; // computes the angle of rotation
+			agent->bm_vx = r * cos(theta);
+			agent->bm_vy = r * sin(theta);
+			// integrate the effect of brownian motion
+			agent->vx += agent->bm_vx;
+			agent->vy += agent->bm_vy;
+		}
+		else {
+			agent->bm_impulse_t_left -= dt;
+		}
 	}
 	return 0;
 }
@@ -1079,9 +1110,8 @@ __FLAME_GPU_FUNC__ int move(xmachine_memory_EV* agent){
 
 	agent->x += agent->vx * dt;
 	agent->y += agent->vy * dt;
-	agent->age += dt;
 
-	//agent->velocity_ums = sqrt(agent->diff_rate_um_x_twice_dof * agent->age) / agent->age;
+	agent->age += dt;
     return 0;
 }
 
@@ -1116,7 +1146,7 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 				// to convert:
 				// N square metres to square micrometre: multiply N * 1e+12
 				// N metres to micrometres: multiply N * 1e+6
-				float diffusion_rate_m = const_Boltzmann_x_Temp_K / (const_6_pi_viscosity * radius_m); // square metre
+				float diffusion_rate_m = const_Boltzmann_x_Temp_K / (const_6_pi_dynamic_viscosity * radius_m); // square metre
 				float diffusion_rate_um = diffusion_rate_m * 1e+12; // square micrometre
 
 				float velocity_um = sqrt(4 * diffusion_rate_um);
@@ -1140,14 +1170,26 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 				float y = agent->y + vy * dt;
 				unsigned int id = generate_EV_id();
 				
+
+				/* xmachine_memory_EV_list* agents, int id, float x, float y, float z, 
+				float x_1, float y_1, float vx, float vy, float bm_vx, float bm_vy, 
+				float bm_impulse_t_left, float mass_kg, float mass_ag, float colour, 
+				float radius_um, float radius_m, float diffusion_rate_m, 
+				float diffusion_rate_um, float diff_rate_um_x_twice_dof, 
+				int closest_ev_id, float closest_ev_distance, int closest_secretory_cell_id, 
+				float closest_secretory_cell_distance, int closest_ciliary_cell_id, 
+				float closest_ciliary_cell_distance, float age, float velocity_ums, float velocity_ms*/
 				add_EV_agent(EVs, id, x, y, 0,
-					agent->x, agent->y, vx, vy, volume * const_mass_per_volume_unit, 0, // <- colour
+					agent->x, agent->y, vx, vy, 0, 0, 0,
+					volume * const_mass_per_volume_unit, // mass_kg
+					0, // mass_ag
+					0, // colour
 					radius_um, radius_m, diffusion_rate_m, diffusion_rate_um, 
 					diffusion_rate_um * 2 * dof,
 					// closest elements and distances
-					-1, 100, -1, 100, -1, 100, 0, 
+					-1, 100, -1, 100, -1, 100, 
+					0,  // age
 					// place holders for brownian motion values
-					0, 0,
 					velocity_um, velocity_m);
 
 				agent->time_since_last_secreted = 0;

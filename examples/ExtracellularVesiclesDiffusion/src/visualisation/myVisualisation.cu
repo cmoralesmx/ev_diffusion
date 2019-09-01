@@ -24,6 +24,8 @@
 
 #include <GL/glew.h>
 //#include <GL/glut.h>
+#include <glm/glm.hpp>
+#include <glm/ext.hpp>
 #include <GL/freeglut.h>
 #include <cuda_gl_interop.h>
 
@@ -34,27 +36,31 @@
 
 extern float *h_xs;
 extern float *h_ys;
-//extern float *h_angles;
 #define FOVY 45.0
 
-// bo variables
-GLuint sphereVerts;
-GLuint sphereNormals;
-GLuint wallVerts;
-GLuint wallNormals;
+GLuint vboIdCiliary;
+GLuint vboIdSecretory;
+GLuint vaoIdSecretory;
+GLuint vaoIdCiliary;
+cudaGraphicsResource *CGRsecretory, *CGRciliary;
+bool display_secretory = true;
 
 //Simulation output buffers/textures
 cudaGraphicsResource_t EV_default_cgr;
-GLuint EV_default_tbo;
-GLuint EV_default_displacementTex;
+// vertex Shader
+GLuint vertexShader;
+GLuint fragmentShader;
+GLuint shaderProgram;
+GLuint vs_mapIndex;
 
-cudaGraphicsResource_t CiliaryCell_c_default_cgr;
-GLuint CiliaryCell_default_tbo;
-GLuint CiliaryCell_default_displacementTex;
+GLuint secretory_vertexShader;
+GLuint secretory_shaderProgram;
+GLuint boundaries_fragmentShader;
+GLuint ciliary_vertexShader;
+GLuint ciliary_shaderProgram;
 
-cudaGraphicsResource_t SecretoryCell_s_default_cgr;
-GLuint SecretoryCell_default_tbo;
-GLuint SecretoryCell_default_displacementTex;
+// bo variables
+GLuint sphereVerts;
 
 // mouse controls
 int mouse_old_x, mouse_old_y;
@@ -63,7 +69,9 @@ float rotate_x = 0.0, rotate_y = 0.0;
 float translate_z = -VIEW_DISTANCE;  // This parameter comes from the visualisation.h file
 
 // camera movement
-float offset_x = 0, offset_y = 0;
+const float DEFAULT_OFFSET_X = 0.0f, DEFAULT_OFFSET_Y = 0.0f, DEFAULT_ZOOM_LEVEL = -VIEW_DISTANCE;
+float offset_x = DEFAULT_OFFSET_X, offset_y = DEFAULT_OFFSET_Y, zoom_level = DEFAULT_ZOOM_LEVEL;
+glm::mat4 model, view, projection;
 
 // keyboard controls
 #if defined(PAUSE_ON_START)
@@ -72,24 +80,12 @@ bool paused = true;
 bool paused = false;
 #endif
 
-// vertex Shader
-GLuint vertexShader;
-GLuint fragmentShader;
-GLuint shaderProgram;
-//GLuint vs_displacementMap;
-GLuint vs_mapIndex;
-
-GLuint walls_vertexShader;
-GLuint walls_fragmentShader;
-GLuint walls_shaderProgram;
-//GLuint walls_vs_displacementMap;
-GLuint walls_vs_mapIndex;
-
 //timer
 cudaEvent_t start, stop;
 const int display_rate = 50;
 int frame_count;
 float frame_time = 0.0;
+unsigned long iterations = 0;
 
 #ifdef SIMULATION_DELAY
 //delay
@@ -101,11 +97,6 @@ int initGL();
 void initShader();
 void createVBO(GLuint* vbo, GLuint size);
 void deleteVBO(GLuint* vbo);
-//void createTBO(GLuint* tbo, GLuint* tex, GLuint size);
-//void deleteTBO(GLuint* tbo);
-void createTBO(cudaGraphicsResource_t* cudaResource, GLuint* tbo, GLuint* tex, GLuint size);
-void deleteTBO(cudaGraphicsResource_t* cudaResource, GLuint* tbo);
-void setVertexBufferData();
 void reshape(int width, int height);
 void display();
 void close();
@@ -114,7 +105,7 @@ void special(int key, int x, int y);
 void mouse(int button, int state, int x, int y);
 void motion(int x, int y);
 void runCuda();
-void checkGLError();
+void checkGLError(char * caller);
 
 /* Error check function for safe CUDA API calling */
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -163,63 +154,32 @@ The first 3 elements (lookup.xyz) affect the positional data obtained from gl_Ve
 */
 const char vertexShaderSource[] =
 {
-	"#extension GL_EXT_gpu_shader4 : enable										\n"
-	"uniform samplerBuffer displacementMap;										\n"
-	"attribute in float mapIndex;												\n"
-	"varying vec3 normal, lightDir;												\n"
+	"uniform mat4 mvp;															\n"
 	"varying vec4 colour;														\n"
+	"attribute in vec2 position;												\n"
+	"attribute in float radius;													\n"
 	"void main()																\n"
 	"{																			\n"
-	"	vec4 position = gl_Vertex;											    \n"
-	"	vec4 lookup = texelFetchBuffer(displacementMap, (int)mapIndex);		    \n"
-	"	if (lookup.w > 0.0664)	                									\n"
+	"	if (radius > 0.0664)	                								\n"
 	"		colour = vec4(0., 0.59, 0.53, 1.0);						    		\n" // teal (0,150,133)
-	"	else if (lookup.w > 0.0579)	               								\n"
+	"	else if (radius > 0.0579)	               								\n"
 	"		colour = vec4(0.9, 0.12, 0.39, 1.0);							    \n" // pink (229,30,99)
-	"	else if (lookup.w > 0.0493)	                							\n"
+	"	else if (radius > 0.0493)	                							\n"
 	"		colour = vec4(0.61, 0.15, 0.69, 1.0);							    \n" // purple (155,38,175)
-	"	else if (lookup.w > 0.0407)	                							\n"
+	"	else if (radius > 0.0407)	                							\n"
 	"		colour = vec4(0.1, 0.66, 0.96, 1.0);							    \n"	// light blue (25,168,244)
-	"	else if (lookup.w > 0.0321)	                							\n"
+	"	else if (radius > 0.0321)	                							\n"
 	"		colour = vec4(1.0, 0.92, 0.23, 1.0);								\n" // yellow (255,234,58)
-	"	else if (lookup.w > 0.0236)	                							\n"
-	"		colour = vec4(0.5, 0.2, 0.0, 1.0);								\n" // brown (128, 51, 0)
+	"	else if (radius > 0.0236)	                							\n"
+	"		colour = vec4(0.5, 0.2, 0.0, 1.0);									\n" // brown (128, 51, 0)
 	"	else                      	                							\n"
 	"		colour = vec4(0.37, 0.49, 0.55, 1.0);								\n" // blue grey (91, 124, 140)
 	"																    		\n"
-	"	lookup.w = 1.0;												    		\n"
-	"	position += lookup;											    		\n"
-	"   gl_Position = gl_ModelViewProjectionMatrix * position;		    		\n" // transform the scene coordinates in position -> screen coordinates in gl_Position
-	"																			\n"
-	"	vec3 mvVertex = vec3(gl_ModelViewMatrix * position);			    	\n" // intersects the gl_ModelViewMatrix and position
-	"	lightDir = vec3(gl_LightSource[0].position.xyz - mvVertex);				\n"	// obtains lightning directional info for the coordinates obtained by the previous intersection
-	"	normal = gl_NormalMatrix * gl_Normal;									\n" // intersects both normal matrices??
+	"   gl_Position = mvp * vec4(position, 0, 1);		    					\n"
+	"	gl_PointSize = radius * 20;												\n"
 	"}																			\n"
 };
 
-const char vertexShaderSource2[] =
-{
-	"#extension GL_EXT_gpu_shader4 : enable										\n"
-	"uniform samplerBuffer displacementMap;										\n"
-	"attribute in float mapIndex;												\n"
-	"varying vec3 normal, lightDir;												\n"
-	"varying vec4 colour;														\n"
-	"void main()																\n"
-	"{																			\n"
-	"	vec4 lookup = texelFetchBuffer(displacementMap, (int)mapIndex);		    \n"
-	"   mat4 A = mat4(mat3(mat2(cos(lookup.w), sin(lookup.w), -sin(lookup.w), cos(lookup.w)))); \n"
-	"   colour = vec4(0., 0., 0., 1.0);										\n" // ciliary cells - black
-	"	vec4 position = A* gl_Vertex;											\n"
-	"	lookup.w = 1.0;												    		\n"
-	"	position += lookup;									    		\n"
-	"																			\n"
-	"   gl_Position = gl_ModelViewProjectionMatrix * position;		    		\n" // transform the scene coordinates in position -> screen coordinates in gl_Position
-	"																			\n"
-	"	vec3 mvVertex = vec3(gl_ModelViewMatrix * position);			    	\n" // intersects the gl_ModelViewMatrix and position
-	"	lightDir = vec3(gl_LightSource[0].position.xyz - mvVertex);				\n"	// obtains lightning directional info for the coordinates obtained by the previous intersection
-	"	normal = gl_NormalMatrix * gl_Normal;									\n" // intersects both normal matrices??
-	"}																			\n"
-};
 /*
 A nice explanation of how shadding works is available at
 https://learnopengl.com/Lighting/Basic-Lighting
@@ -227,116 +187,94 @@ http://www.opengl-tutorial.org/beginners-tutorials/tutorial-8-basic-shading/
 */
 const char fragmentShaderSource[] =
 {
-	"varying vec3 normal, lightDir;												\n"
 	"varying vec4 colour;														\n"
 	"void main (void)															\n"
 	"{																			\n"
 	"	// Defining The Material Colors											\n"
 	"	vec4 AmbientColor = colour;												\n"
 	"	vec4 DiffuseColor = vec4(0.0, 0.0, 0.25, 1.0);	           		    	\n"
-	"																			\n"
-	"	// Scaling The Input Vector To Length 1									\n"
-	"	vec3 n_normal = normalize(normal);							        	\n"
-	"	vec3 n_lightDir = normalize(lightDir);	                                \n"
-	"																			\n"
-	"	// Calculating The Diffuse Term And Clamping It To [0;1]				\n"
-	"	float DiffuseTerm = clamp(dot(n_normal, n_lightDir), 0.0, 1.0);\n"
-	"																			\n"
-	"	// Calculating The Final Color											\n"
-	"	gl_FragColor = AmbientColor + DiffuseColor * DiffuseTerm;				\n"
-	"																			\n"
+	"	gl_FragColor = AmbientColor + DiffuseColor;								\n"
 	"}																			\n"
 };
-const char fragmentShaderSource2[] =
+
+const char secretory_vertexShaderSource[] =
 {
-	"varying vec3 normal, lightDir;												\n"
-	"varying vec4 colour;														\n"
+	"#version 330 core															\n"
+	"layout (location=0) in vec2 position;									\n"
+	"out vec4 colour;														\n"
+	"uniform mat4 mvp;															\n"
+	"void main()																\n"
+	"{																			\n"
+	"   gl_Position = mvp * vec4(position, 0.0, 1.0);							\n"
+	"	colour = vec4(1., 0., 0., 1.);											\n"
+	"}																			\n"
+};
+
+const char ciliary_vertexShaderSource[] =
+{
+	"#version 330 core														\n"
+	"layout (location=0) in vec2 position;									\n"
+	"out vec4 colour;														\n"
+	"uniform mat4 mvp;														\n"
+	"void main()																\n"
+	"{																			\n"
+	"   gl_Position = mvp * vec4(position, 0.0, 1.0);							\n"
+	"	colour = vec4(0., 0., 1., 1.);											\n"
+	"}																			\n"
+};
+
+const char boundaries_fragmentShaderSource[] =
+{
+	"#version 330 core																\n"
+	"in vec4 colour;														\n"
 	"void main (void)															\n"
 	"{																			\n"
-	"	// Defining The Material Colors											\n"
-	"	vec4 AmbientColor = colour;												\n"
-	"	vec4 DiffuseColor = vec4(0.0, 0.0, 0.25, 1.0);	           		    	\n"
-	"																			\n"
-	"	// Scaling The Input Vector To Length 1									\n"
-	"	vec3 n_normal = normalize(normal);							        	\n"
-	"	vec3 n_lightDir = normalize(lightDir);	                                \n"
-	"																			\n"
-	"	// Calculating The Diffuse Term And Clamping It To [0;1]				\n"
-	"	float DiffuseTerm = clamp(dot(n_normal, n_lightDir), 0.0, 1.0);\n"
-	"																			\n"
-	"	// Calculating The Final Color											\n"
-	"	gl_FragColor = AmbientColor + DiffuseColor * DiffuseTerm;				\n"
-	"																			\n"
+	"	gl_FragColor = colour;													\n"
 	"}																			\n"
 };
 
 //GPU Kernels
-/**
-The screen X,Y values are computer here for each agent
-float3 centralize provides the pre-computed coordinates for the absolute center of the screen.
-Then, each agent's value is set in relation to the computed centre.
-
-*/
-__global__ void output_EV_agent_to_VBO(xmachine_memory_EV_list* agents, glm::vec4* vbo, glm::vec3 centralise, float offset_x, float offset_y){
+__global__ void output_EV_agent_to_VBO(xmachine_memory_EV_list* agents, glm::vec3* vbo){
 
 	//global thread index
 	int index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
 
-	vbo[index].x = offset_x; //0.0;
-	vbo[index].y = offset_y; // 0.0;
-	vbo[index].z = 0;
-
-	vbo[index].x += agents->x[index] - centralise.x;
-	vbo[index].y += agents->y[index] - centralise.y;
-	vbo[index].z = agents->z[index] - centralise.z;
-	//vbo[index].w = ((agents->radius_um[index] * 2000.f) / 300.f) * 8.f;  // agents->colour[index];
-	vbo[index].w = agents->radius_um[index];// *53.333333333333336f;
+	vbo[index].x = agents->x[index];
+	vbo[index].y = agents->y[index];
+	vbo[index].z = agents->radius_um[index];
 }
 
-__global__ void output_CiliaryCell_agent_to_VBO(xmachine_memory_CiliaryCell_list* agents,
-	glm::vec4* vbo, glm::vec3 centralise, float offset_x, float offset_y) {
+__device__ int copyVertexToVBO(glm::vec2* vbo, int index, float p1_x, float p1_y, float p2_x, float p2_y, float type) {
+	int index2 = index * 2;
 
-	//global thread index
-	int index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	//int index_2 = index * 2;
-
-	vbo[index].x = offset_x; //0.0;
-	vbo[index].y = offset_y; // 0.0;
-	vbo[index].z = 0; // 0.0;
-	
-
-
-	vbo[index].x += agents->x[index] - centralise.x;
-	vbo[index].y += agents->y[index] - centralise.y;
-	vbo[index].z = agents->z[index] - centralise.z;
-	vbo[index].w = agents->angle[index]; // agents->ra[index];
+	vbo[index2].x = p1_x;
+	vbo[index2].y = p1_y;
+	vbo[index2 + 1].x = p2_x;
+	vbo[index2 + 1].y = p2_y;
+	return 0;
 }
 
-__global__ void output_SecretoryCell_agent_to_VBO(xmachine_memory_SecretoryCell_list* agents,
-	glm::vec4* vbo, glm::vec3 centralise, float offset_x, float offset_y) {
+__global__ void output_SecretoryCell_agent_to_VBO(xmachine_memory_SecretoryCell_list* agents, glm::vec2* vbo) {
 
 	//global thread index
 	int index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	//int index_2 = index * 2;
+	copyVertexToVBO(vbo, index, agents->p1_x[index], agents->p1_y[index], agents->p2_x[index], agents->p2_y[index], 1.0);
+}
 
-	vbo[index].x = offset_x; //0.0;
-	vbo[index].y = offset_y; // 0.0;
-	vbo[index].z = 0; // 0.0;
+__global__ void output_CiliaryCell_agent_to_VBO(xmachine_memory_CiliaryCell_list* agents, glm::vec2* vbo) {
 
-	vbo[index].x += agents->x[index] - centralise.x;
-	vbo[index].y += agents->y[index] - centralise.y;
-	vbo[index].z = agents->z[index] - centralise.z;
-	vbo[index].w = agents->angle[index]; // agents->ra[index];
+	//global thread index
+	int index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	copyVertexToVBO(vbo, index, agents->p1_x[index], agents->p1_y[index],  agents->p2_x[index], agents->p2_y[index], 0.0);
 }
 
 void initVisualisation()
 {
 	printf("Initialising visualisation\n");
 	// Create GL context
-	int   argc = 1;
+	int argc = 1;
 	char glutString[] = "GLUT application";
 	char *argv[] = { glutString, NULL };
-	//char *argv[] = {"GLUT application", NULL};
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -360,27 +298,10 @@ void initVisualisation()
 	glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 
 	// create VBO's
-	// CAMG allocate enough buffer space to contain the vertices of a single sphere only
-	createVBO(&sphereVerts, SPHERE_SLICES* (SPHERE_STACKS + 1) * sizeof(glm::vec3));
-	// CAMG allocate enough buffer space to contain the normals of a single sphere only
-	createVBO(&sphereNormals, SPHERE_SLICES* (SPHERE_STACKS + 1) * sizeof(glm::vec3));
-	// CAMG write the vertices and normals for a sinlge sphere
-	// Should this data be written per agent? because we want to represent the size of each agent.
-	// It seems 'cloning' is offloaded to the geometry shader, which would draw an instance of the sphere per point particle???
-	createVBO(&wallVerts, 12 * sizeof(glm::vec3));
-	createVBO(&wallNormals, 12 * sizeof(glm::vec3));
+	createVBO(&sphereVerts, get_agent_EV_MAX_count() * sizeof(glm::vec3));
 	
-
-	// write the default vertices and normals for one sphere in sphereVerts and sphereNormals respectively
-	setVertexBufferData();
-
-	// create TBO - This does the CUDA - 
-	createTBO(&EV_default_cgr, &EV_default_tbo, &EV_default_displacementTex, xmachine_memory_EV_MAX * sizeof(glm::vec4));
-	createTBO(&CiliaryCell_c_default_cgr, &CiliaryCell_default_tbo, &CiliaryCell_default_displacementTex, xmachine_memory_CiliaryCell_MAX * sizeof(glm::vec4));
-	createTBO(&SecretoryCell_s_default_cgr, &SecretoryCell_default_tbo, &SecretoryCell_default_displacementTex, xmachine_memory_SecretoryCell_MAX * sizeof(glm::vec4));
-
-	//set shader uniforms
-	glUseProgram(shaderProgram);
+	// registers a GraphicsGLResource with CUDA for interop access
+	gpuErrchk(cudaGraphicsGLRegisterBuffer(&EV_default_cgr, sphereVerts, cudaGraphicsMapFlagsNone));
 
 	//create a events for timer
 	cudaEventCreate(&start);
@@ -389,6 +310,63 @@ void initVisualisation()
 }
 
 void runVisualisation(){
+	printf(">>>>> Allocating OpenGL resources for: [Secretory cells: %d, Ciliary cells: %d]\n", get_agent_SecretoryCell_s_default_count(), get_agent_CiliaryCell_c_default_count());
+
+	// prepare the containers
+	unsigned int size;
+	int threads_per_tile = 256;
+	int tile_size;
+	dim3 grid;
+	dim3 threads;
+
+	if (get_agent_SecretoryCell_s_default_count() > 0) {
+		size = get_agent_SecretoryCell_MAX_count() * 4 * sizeof(float);
+		createVBO(&vboIdSecretory, size);
+		gpuErrchk(cudaGraphicsGLRegisterBuffer(&CGRsecretory, vboIdSecretory, cudaGraphicsMapFlagsReadOnly));
+		checkGLError("createVBO - secretory");
+
+		glm::vec2 *secretory_dptr;
+		size_t size_secretory;
+		// map OpenGL buffer object for writing from CUDA
+		gpuErrchk(cudaGraphicsMapResources(1, &CGRsecretory, 0));
+		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&secretory_dptr, &size_secretory, CGRsecretory));
+
+		//cuda block size
+		tile_size = (int)ceil((float)get_agent_SecretoryCell_s_default_count() / threads_per_tile);
+		grid = dim3(tile_size, 1, 1);
+		threads = dim3(threads_per_tile, 1, 1);
+
+		output_SecretoryCell_agent_to_VBO << < grid, threads >> > (get_device_SecretoryCell_s_default_agents(), secretory_dptr);
+		cudaDeviceSynchronize();
+		gpuErrchkLaunch();
+
+		gpuErrchk(cudaGraphicsUnmapResources(1, &CGRsecretory, 0));
+	}
+
+	if (get_agent_CiliaryCell_c_default_count() > 0) {
+		size = get_agent_CiliaryCell_MAX_count() * 4 * sizeof(float);
+		createVBO(&vboIdCiliary, size);
+		gpuErrchk(cudaGraphicsGLRegisterBuffer(&CGRciliary, vboIdCiliary, cudaGraphicsMapFlagsReadOnly));
+		checkGLError("createVBO - ciliary");
+
+		glm::vec2 *ciliary_dptr;
+		size_t size_ciliary;
+		// map OpenGL buffer object for writing from CUDA
+		gpuErrchk(cudaGraphicsMapResources(1, &CGRciliary, 0));
+		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&ciliary_dptr, &size_ciliary, CGRciliary));
+
+		//cuda block size
+		tile_size = (int)ceil((float)get_agent_CiliaryCell_c_default_count() / threads_per_tile);
+		grid = dim3(tile_size, 1, 1);
+		threads = dim3(threads_per_tile, 1, 1);
+
+		output_CiliaryCell_agent_to_VBO << < grid, threads >> > (get_device_CiliaryCell_c_default_agents(), ciliary_dptr);
+		cudaDeviceSynchronize();
+		gpuErrchkLaunch();
+
+		gpuErrchk(cudaGraphicsUnmapResources(1, &CGRciliary, 0));
+	}
+
 	// start rendering mainloop
 	glutMainLoop();
 }
@@ -407,6 +385,7 @@ void runCuda()
 		}
 #else
 		singleIteration();
+		++iterations;
 #endif
 	}
 
@@ -415,11 +394,8 @@ void runCuda()
 	int tile_size;
 	dim3 grid;
 	dim3 threads;
-	glm::vec3 centralise;
 
-	//pointer
-	glm::vec4 *dptr, *dptr2;
-
+	glm::vec3 *dptr;
 
 	if (get_agent_EV_default_count() > 0)
 	{
@@ -431,76 +407,22 @@ void runCuda()
 		tile_size = (int)ceil((float)get_agent_EV_default_count() / threads_per_tile);
 		grid = dim3(tile_size, 1, 1);
 		threads = dim3(threads_per_tile, 1, 1);
-
-		centralise = getMaximumBounds() + getMinimumBounds();
-
-		centralise /= 2;
-		//printf("centralise %f %f %f", centralise.x, centralise.y, centralise.z);
-
-
-		output_EV_agent_to_VBO << < grid, threads >> >(get_device_EV_default_agents(), dptr, centralise, offset_x, offset_y);
+		
+		output_EV_agent_to_VBO << < grid, threads >> >(get_device_EV_default_agents(), dptr);
 		gpuErrchkLaunch();
 		// unmap buffer object
 		gpuErrchk(cudaGraphicsUnmapResources(1, &EV_default_cgr));
 	}
-
-	if (get_agent_CiliaryCell_c_default_count() > 0)
-	{
-		size_t accessibleBufferSize = 0;
-		// map OpenGL buffer object for writing from CUDA
-		gpuErrchk(cudaGraphicsMapResources(1, &CiliaryCell_c_default_cgr));
-		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&dptr2, &accessibleBufferSize, CiliaryCell_c_default_cgr));
-		//cuda block size
-		tile_size = (int)ceil((float)get_agent_CiliaryCell_c_default_count() / threads_per_tile);
-		grid = dim3(tile_size, 1, 1);
-		threads = dim3(threads_per_tile, 1, 1);
-
-		centralise = getMaximumBounds() + getMinimumBounds();
-
-		centralise /= 2;
-		//printf("centralise %f %f %f", centralise.x, centralise.y, centralise.z);
-
-
-		output_CiliaryCell_agent_to_VBO << < grid, threads >> >(get_device_CiliaryCell_c_default_agents(), dptr2, centralise, offset_x, offset_y);
-		gpuErrchkLaunch();
-		// unmap buffer object
-		gpuErrchk(cudaGraphicsUnmapResources(1, &CiliaryCell_c_default_cgr));
-	}
-
-	if (get_agent_SecretoryCell_s_default_count() > 0)
-	{
-		size_t accessibleBufferSize = 0;
-		// map OpenGL buffer object for writing from CUDA
-		gpuErrchk(cudaGraphicsMapResources(1, &SecretoryCell_s_default_cgr));
-		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&dptr2, &accessibleBufferSize, SecretoryCell_s_default_cgr));
-		//cuda block size
-		tile_size = (int)ceil((float)get_agent_SecretoryCell_s_default_count() / threads_per_tile);
-		grid = dim3(tile_size, 1, 1);
-		threads = dim3(threads_per_tile, 1, 1);
-
-		centralise = getMaximumBounds() + getMinimumBounds();
-
-		centralise /= 2;
-		//printf("centralise %f %f %f", centralise.x, centralise.y, centralise.z);
-
-
-		output_SecretoryCell_agent_to_VBO << < grid, threads >> >(get_device_SecretoryCell_s_default_agents(), dptr2, centralise, offset_x, offset_y);
-		gpuErrchkLaunch();
-		// unmap buffer object
-		gpuErrchk(cudaGraphicsUnmapResources(1, &SecretoryCell_s_default_cgr));
-	}
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//! Initialize GL
+//! Initialize GL - method called by initVisualisation
 ////////////////////////////////////////////////////////////////////////////////
 int initGL()
 {
 	// initialize necessary OpenGL extensions
 	glewInit();
-	if (!glewIsSupported("GL_VERSION_2_0 "
-		"GL_ARB_pixel_buffer_object")) {
+	if (!glewIsSupported("GL_VERSION_3_3")) {
 		fprintf(stderr, "ERROR: Support for necessary OpenGL extensions missing.\n");
 		fflush(stderr);
 		return 1;
@@ -509,9 +431,10 @@ int initGL()
 	// default initialization
 	glClearColor(1.0, 1.0, 1.0, 1.0);
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_PROGRAM_POINT_SIZE);
 
 	reshape(WINDOW_WIDTH, WINDOW_HEIGHT);
-	checkGLError();
+	checkGLError("initGL");
 
 	//lighting
 	glEnable(GL_LIGHTING);
@@ -548,7 +471,7 @@ void initShader()
 	GLint status;
 	glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &status);
 	if (status == GL_FALSE){
-		printf("ERROR: Shader Compilation Error\n");
+		printf("ERROR: Shader Compilation Error: vertexShader\n");
 		char data[262144];
 		int len;
 		glGetShaderInfoLog(vertexShader, 262144, &len, data);
@@ -556,7 +479,7 @@ void initShader()
 	}
 	glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &status);
 	if (status == GL_FALSE){
-		printf("ERROR: Shader Compilation Error\n");
+		printf("ERROR: Shader Compilation Error: fragmentShader \n");
 		char data[262144];
 		int len;
 		glGetShaderInfoLog(fragmentShader, 262144, &len, data);
@@ -564,58 +487,83 @@ void initShader()
 	}
 	glGetProgramiv(shaderProgram, GL_LINK_STATUS, &status);
 	if (status == GL_FALSE){
-		printf("ERROR: Shader Program Link Error\n");
+		printf("ERROR: Shader Program Link Error: shaderProgram\n");
 	}
 
 	// get shader variables
 	//vs_displacementMap = glGetUniformLocation(shaderProgram, "displacementMap");
 	vs_mapIndex = glGetAttribLocation(shaderProgram, "mapIndex");
 
-	const char* v2 = vertexShaderSource2;
-	const char* f2 = fragmentShaderSource2;
+	const char* v2 = secretory_vertexShaderSource;
+	const char* f2 = boundaries_fragmentShaderSource;
 
 	//vertex shader
-	walls_vertexShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(walls_vertexShader, 1, &v2, 0);
-	glCompileShader(walls_vertexShader);
+	secretory_vertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(secretory_vertexShader, 1, &v2, 0);
+	glCompileShader(secretory_vertexShader);
 
 	//fragment shader
-	walls_fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(walls_fragmentShader, 1, &f2, 0);
-	glCompileShader(walls_fragmentShader);
+	boundaries_fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(boundaries_fragmentShader, 1, &f2, 0);
+	glCompileShader(boundaries_fragmentShader);
 
 	//program
-	walls_shaderProgram = glCreateProgram();
-	glAttachShader(walls_shaderProgram, walls_vertexShader);
-	glAttachShader(walls_shaderProgram, walls_fragmentShader);
-	glLinkProgram(walls_shaderProgram);
+	secretory_shaderProgram = glCreateProgram();
+	glAttachShader(secretory_shaderProgram, secretory_vertexShader);
+	glAttachShader(secretory_shaderProgram, boundaries_fragmentShader);
+	glLinkProgram(secretory_shaderProgram);
 
 	// check for errors
 	//GLint status;
-	glGetShaderiv(walls_vertexShader, GL_COMPILE_STATUS, &status);
+	glGetShaderiv(secretory_vertexShader, GL_COMPILE_STATUS, &status);
 	if (status == GL_FALSE) {
-		printf("ERROR: Shader Compilation Error\n");
+		printf("ERROR: Shader Compilation Error: secretory_vertexShader\n");
 		char data[262144];
 		int len;
-		glGetShaderInfoLog(walls_vertexShader, 262144, &len, data);
+		glGetShaderInfoLog(secretory_vertexShader, 262144, &len, data);
 		printf("%s", data);
 	}
-	glGetShaderiv(walls_fragmentShader, GL_COMPILE_STATUS, &status);
+	glGetShaderiv(boundaries_fragmentShader, GL_COMPILE_STATUS, &status);
 	if (status == GL_FALSE) {
-		printf("ERROR: Shader Compilation Error\n");
+		printf("ERROR: Shader Compilation Error: secretory_fragmentShader\n");
 		char data[262144];
 		int len;
-		glGetShaderInfoLog(walls_fragmentShader, 262144, &len, data);
+		glGetShaderInfoLog(boundaries_fragmentShader, 262144, &len, data);
 		printf("%s", data);
 	}
-	glGetProgramiv(walls_shaderProgram, GL_LINK_STATUS, &status);
+	glGetProgramiv(secretory_shaderProgram, GL_LINK_STATUS, &status);
 	if (status == GL_FALSE) {
-		printf("ERROR: Shader Program Link Error\n");
+		printf("ERROR: Shader Program Link Error: secretory_shaderProgram\n");
 	}
 
-	// get shader variables
-	//walls_vs_displacementMap = glGetUniformLocation(walls_shaderProgram, "displacementMap");
-	walls_vs_mapIndex = glGetAttribLocation(walls_shaderProgram, "mapIndex");
+	const char* v3 = ciliary_vertexShaderSource;
+	//const char* f2 = secretory_fragmentShaderSource;
+
+	//vertex shader
+	ciliary_vertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(ciliary_vertexShader, 1, &v3, 0);
+	glCompileShader(ciliary_vertexShader);
+
+	//program
+	ciliary_shaderProgram = glCreateProgram();
+	glAttachShader(ciliary_shaderProgram, ciliary_vertexShader);
+	glAttachShader(ciliary_shaderProgram, boundaries_fragmentShader);
+	glLinkProgram(ciliary_shaderProgram);
+
+	// check for errors
+	glGetShaderiv(ciliary_vertexShader, GL_COMPILE_STATUS, &status);
+	if (status == GL_FALSE) {
+		printf("ERROR: Shader Compilation Error: ciliary_vertexShader\n");
+		char data[262144];
+		int len;
+		glGetShaderInfoLog(ciliary_vertexShader, 262144, &len, data);
+		printf("%s", data);
+	}
+	glGetProgramiv(ciliary_shaderProgram, GL_LINK_STATUS, &status);
+	if (status == GL_FALSE) {
+		printf("ERROR: Shader Program Link Error: ciliary_shaderProgram\n");
+	}
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -632,7 +580,7 @@ void createVBO(GLuint* vbo, GLuint size)
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-	checkGLError();
+	checkGLError("createVBO");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -647,157 +595,13 @@ void deleteVBO(GLuint* vbo)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//! Create TBO
-////////////////////////////////////////////////////////////////////////////////
-void createTBO(cudaGraphicsResource_t* cudaResource, GLuint* tbo, GLuint* tex, GLuint size)
-{
-	// &EV_default_tbo, &EV_default_displacementTex, 
-	// generates one buffer object name in tbo
-	glGenBuffers(1, tbo);
-	// binds a GL_TEXTURE_BUFFER_EXT to the buffer object named -> tbo
-	glBindBuffer(GL_TEXTURE_BUFFER_EXT, *tbo);
-
-	// initialize the buffer object to the size -> xmachine_memory_EV_MAX * sizeof(glm::vec4)
-	glBufferData(GL_TEXTURE_BUFFER_EXT, size, 0, GL_DYNAMIC_DRAW);
-
-	//tex - generates one texture name and stores it in -> tex
-	glGenTextures(1, tex);
-	// binds a GL_TEXTURE_BUFFER_EXT to the buffer object named -> tex
-	glBindTexture(GL_TEXTURE_BUFFER_EXT, *tex);
-	// map the TBO data to a texture
-	// Two Vertex Buffer Objects (VBOs) are used to store vertex data for some vertex point data and 
-	// some vertex attributes respectively. A vertex shader then fetches the CUDA position data using 
-	// the per vertex attribute data as an index in the texture data.
-	glTexBufferEXT(GL_TEXTURE_BUFFER_EXT, GL_RGBA32F_ARB, *tbo);
-	// binds the same texture buffer object to 0-NOTHING?
-	glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
-
-	// register buffer object with CUDA
-	gpuErrchk(cudaGraphicsGLRegisterBuffer(cudaResource, *tbo, cudaGraphicsMapFlagsWriteDiscard));
-
-	checkGLError();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//! Delete TBO
-////////////////////////////////////////////////////////////////////////////////
-void deleteTBO(cudaGraphicsResource_t* cudaResource, GLuint* tbo)
-{
-	gpuErrchk(cudaGraphicsUnregisterResource(*cudaResource));
-	*cudaResource = 0;
-
-	glBindBuffer(1, *tbo);
-	glDeleteBuffers(1, tbo);
-
-	*tbo = 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//! Set Sphere Vertex Data
-////////////////////////////////////////////////////////////////////////////////
-static void setSphereVertex(glm::vec3* data, int slice, int stack) {
-	float PI = 3.14159265358f;
-
-	float sl = 2 * PI*slice / SPHERE_SLICES;
-	float st = 2 * PI*stack / SPHERE_STACKS;
-
-	data->x = cosf(st)*sinf(sl) * SPHERE_RADIUS;
-	data->y = sinf(st)*sinf(sl) * SPHERE_RADIUS;
-	data->z = cosf(sl) * SPHERE_RADIUS;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//! Set Sphere Normal Data
-////////////////////////////////////////////////////////////////////////////////
-static void setSphereNormal(glm::vec3* data, int slice, int stack) {
-	float PI = 3.14159265358f;
-
-	float sl = 2 * PI*slice / SPHERE_SLICES;
-	float st = 2 * PI*stack / SPHERE_STACKS;
-
-	data->x = cosf(st)*sinf(sl);
-	data->y = sinf(st)*sinf(sl);
-	data->z = cosf(sl);
-}
-
-static void setWallVertex(glm::vec3* data, int index) {
-	GLfloat vertices[] = {
-		0.5f, 0.1f, 0.0f, // Top-right
-		-0.5f, 0.1f, 0.0f, // Top-left
-		0.5f, -0.1f, 0.0f, // Bottom-right
-		-0.5f, -0.1f, 0.0f };  // Bottom-left
-	data->x = vertices[index * 3];
-	data->y = vertices[index * 3 + 1];
-	data->z = vertices[index * 3 + 2];
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//! Set Vertex Buffer Data
-////////////////////////////////////////////////////////////////////////////////
-void setVertexBufferData()
-{
-	int slice, stack;
-	int i;
-
-	// upload vertex points data
-	// Binds the 'sphereVerts' buffer object to the binding target GL_ARRAY_BUFFER
-	glBindBuffer(GL_ARRAY_BUFFER, sphereVerts);
-	// map a buffer object data store. Target: GL_ARRAY_BUFFER, access: GL_WRITE_ONLY
-	// Therefore, the buffer GL_ARRAY_BUFFER will be the target of the data writen in this function. Our reference to this buffer/data is spheresVerts
-	glm::vec3* verts = (glm::vec3*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-	i = 0;
-	for (slice = 0; slice<SPHERE_SLICES / 2; slice++) {
-		for (stack = 0; stack <= SPHERE_STACKS; stack++) {
-			// write the vertices data to the 'sphereVerts' buffer object
-			setSphereVertex(&verts[i++], slice, stack);
-			setSphereVertex(&verts[i++], slice + 1, stack);
-		}
-	}
-	glUnmapBuffer(GL_ARRAY_BUFFER);
-
-	// upload vertex normal data
-	glBindBuffer(GL_ARRAY_BUFFER, sphereNormals);
-	glm::vec3* normals = (glm::vec3*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-	i = 0;
-	for (slice = 0; slice<SPHERE_SLICES / 2; slice++) {
-		for (stack = 0; stack <= SPHERE_STACKS; stack++) {
-			setSphereNormal(&normals[i++], slice, stack);
-			setSphereNormal(&normals[i++], slice + 1, stack);
-		}
-	}
-	glUnmapBuffer(GL_ARRAY_BUFFER);
-	
-
-	glBindBuffer(GL_ARRAY_BUFFER, wallVerts);
-	glm::vec3* wall_verts = (glm::vec3*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-	for(int i=0; i<12; i++)
-		setWallVertex(&wall_verts[i], i);
-	glUnmapBuffer(GL_ARRAY_BUFFER);
-
-	/*glBindBuffer(GL_ARRAY_BUFFER, wallNormals);
-	glm::vec3* wall_normals = (glm::vec3*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-	for (int i = 0; i<36; i++)
-		setWallNormals(&wall_normals[i], i);
-	glUnmapBuffer(GL_ARRAY_BUFFER);*/
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
 //! Reshape callback
 ////////////////////////////////////////////////////////////////////////////////
-
 void reshape(int width, int height){
 	// viewport
 	glViewport(0, 0, width, height);
-
-	// projection
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluPerspective(FOVY, (GLfloat)width / (GLfloat)height, NEAR_CLIP, FAR_CLIP);
-
-	checkGLError();
+	projection = glm::perspective(glm::radians((float)FOVY), (float)width / (float)height, (float)NEAR_CLIP, (float)FAR_CLIP);
+	checkGLError("reshape");
 }
 
 
@@ -816,99 +620,56 @@ void display()
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// set view matrix
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-
-	//zoom
-	glTranslatef(0.0, 0.0, translate_z);
-
-	//move
-	glRotatef(rotate_x, 1.0, 0.0, 0.0);
-	glRotatef(rotate_y, 0.0, 0.0, 1.0);
-
-
 	//Set light position
 	glLightfv(GL_LIGHT0, GL_POSITION, LIGHT_POSITION);
+	checkGLError("display 0");
+
+	model = glm::mat4(1);
+	view = glm::translate(glm::mat4(1), glm::vec3(offset_x, offset_y, zoom_level));
+	glm::mat4 mv = view * model;
+	glm::mat4 mvp = projection * view * model;
 
 	//Draw EV Agents in default state
-	/*
-	CAMG texture unit 0 us used for drawing the displacement map???
-	glBindTexture - binds the named texture EV_default_displacementTex to the
-	texturing target GL_TEXTURE_BUFFER_EXT
-	https://www.khronos.org/registry/OpenGL-Refpages/es2.0/xhtml/glBindTexture.xml
-	*/
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_BUFFER_EXT, EV_default_displacementTex);
-	//int top_limit = get_agent_EV_default_count() > 0 ? get_agent_EV_default_count() : get_agent_EV_initial_count();
-	for (int i = 0; i< get_agent_EV_default_count(); i++){
-		// specify the value (i) of a generic vertex attribute to be modified. 
-		// Here vs_mapIndex is referencing the attribute "mapIndex from the gl program shaderProgam
-		glVertexAttrib1f(vs_mapIndex, (float)i);
+	if (get_agent_EV_default_count() > 0) {
+		glUseProgram(shaderProgram);
+		glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "mvp"), 1, GL_FALSE, &mvp[0][0]);
+		checkGLError("display 1a");
 
-		// glEnableClientState - enables the specified capabilities
-		// GL_VERTEX_ARRAY - enables the vertex array for writing, it is also used during rendering when 
-		// glArrayElement, glDrawArrays, glDrawElements, glDrawRangeElements glMultiDrawArrays,
-		// or glMultiDrawElements is called
-		glEnableClientState(GL_VERTEX_ARRAY);
-		// GL_NORMAL_ARRAY - If enabled, the normal array is enabled for writing and used during rendering when 
-		// glArrayElement, glDrawArrays, glDrawElements, glDrawRangeElements glMultiDrawArrays, or glMultiDrawElements is called.
-		glEnableClientState(GL_NORMAL_ARRAY);
-
-		// We specify the source for the data we will be rendering
-
-		// activates the buffer type GL_ARRAY_BUFFER - Here sphereVerts contains the vertices for a sphere at default position???
 		glBindBuffer(GL_ARRAY_BUFFER, sphereVerts);
-		// specifies the location and data format of an array of vertex coordinates to use when rendering. (size, type, stride, pointer to the first vertex in the arrar)
-		glVertexPointer(3, GL_FLOAT, 0, 0);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)(2 * sizeof(float)));
+		glEnableVertexAttribArray(1);
 
-		// activates the buffer type GL_ARRAY_BUFFER
-		glBindBuffer(GL_ARRAY_BUFFER, sphereNormals);
-		// define an array of normals (type, stride, first coordinate of the first normal in the array
-		glNormalPointer(GL_FLOAT, 0, 0);
-
-		// render N primitives by reading the parameters from the buffers previously setup
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, SPHERE_SLICES * (SPHERE_STACKS + 1));
-
-		glDisableClientState(GL_NORMAL_ARRAY);
-		glDisableClientState(GL_VERTEX_ARRAY);
+		glDrawArrays(GL_POINTS, 0, get_agent_SecretoryCell_s_default_count());
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
+	checkGLError("display 1b");
+		
+	if (get_agent_SecretoryCell_s_default_count() > 0) {
+		glUseProgram(secretory_shaderProgram);
+		glUniformMatrix4fv(glGetUniformLocation(secretory_shaderProgram, "mvp"), 1, GL_FALSE, &mvp[0][0]);
+		glBindBuffer(GL_ARRAY_BUFFER, vboIdSecretory);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+		glEnableVertexAttribArray(0);
 
-	glUseProgram(walls_shaderProgram);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_BUFFER_EXT, CiliaryCell_default_displacementTex);
-	
-	//loop
-	//for (int i = 0; i< get_agent_CiliaryCell_c_default_count(); i++) {
-	//	glVertexAttrib1f(walls_vs_mapIndex, (float)i);
-	//	glEnableClientState(GL_VERTEX_ARRAY);
-	//	glEnableClientState(GL_NORMAL_ARRAY);
-
-	//	// We specify the source for the data we will be rendering
-
-	//	glBindBuffer(GL_ARRAY_BUFFER, wallVerts);
-	//	glVertexPointer(3, GL_FLOAT, 0, 0);
-	//	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	//	glDisableClientState(GL_NORMAL_ARRAY);
-	//	glDisableClientState(GL_VERTEX_ARRAY);
-	//}
-	for (int i = 0; i< get_agent_SecretoryCell_s_default_count(); i++) {
-		glVertexAttrib1f(walls_vs_mapIndex, (float)i);
-		glEnableClientState(GL_VERTEX_ARRAY);
-		glEnableClientState(GL_NORMAL_ARRAY);
-
-		// We specify the source for the data we will be rendering
-
-		glBindBuffer(GL_ARRAY_BUFFER, wallVerts);
-		glVertexPointer(3, GL_FLOAT, 0, 0);
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-		glDisableClientState(GL_NORMAL_ARRAY);
-		glDisableClientState(GL_VERTEX_ARRAY);
+		glDrawArrays(GL_LINES, 0, 4 * get_agent_SecretoryCell_s_default_count());
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
-	glUseProgram(shaderProgram);
+	checkGLError("display 2");
+		
+	if (get_agent_CiliaryCell_c_default_count() > 0) {
+		glUseProgram(ciliary_shaderProgram);
+		glUniformMatrix4fv(glGetUniformLocation(ciliary_shaderProgram, "mvp"), 1, GL_FALSE, &mvp[0][0]);
+		glBindBuffer(GL_ARRAY_BUFFER, vboIdCiliary);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+		glEnableVertexAttribArray(0);
 
+		glDrawArrays(GL_LINES, 0, 4 * get_agent_SecretoryCell_s_default_count());
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+	}
+	checkGLError("display 3");
+		
 	//CUDA stop timing
 	cudaEventRecord(stop);
 	glFlush();
@@ -918,7 +679,7 @@ void display()
 
 	if (frame_count == display_rate){
 		char title[100];
-		sprintf(title, "Execution & Rendering Total: %f (FPS), %f milliseconds per frame", display_rate / (frame_time / 1000.0f), frame_time / display_rate);
+		sprintf(title, "Exec & Render Total: %6.3f (FPS), %6.3f millis p/frame. | iters: %lu", display_rate / (frame_time / 1000.0f), frame_time / display_rate, iterations);
 		glutSetWindowTitle(title);
 
 		//reset
@@ -928,11 +689,10 @@ void display()
 	else{
 		frame_count++;
 	}
-
+	checkGLError("display 4");
 
 	glutSwapBuffers();
 	glutPostRedisplay();
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -945,50 +705,54 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 	case(87) :
 	case(119) :
 			  // W == 87, w == 119
-			  offset_y -= 10;
+			  offset_y -= 1;
 		//printf("offset_y=%f", offset_y);
 		break;
 	case(65) :
 	case(97) :
 			 // A == 65, a == 97
-			 offset_x += 10;
+			 offset_x += 1;
 		//printf("offset_x=%f", offset_x);
 		break;
 	case(83) :
 	case(115) :
 			  // S == 83, s == 115
-			  offset_y += 10;
+			  offset_y += 1;
 		//printf("offset_y=%f", offset_y);
 		break;
 
 	case(68) :
 	case(100) :
 			  // D == 68, d == 100
-			  offset_x -= 10;
+			  offset_x -= 1;
 		//printf("offset_x=%f", offset_x);
 		break;
 
 	case(75) :
 	case(107): // xoom in x 10 - k or K
 		translate_z += 10.0;
+		zoom_level += 10.0;
 		printf("zoom in: translate_z=%f\n", translate_z);
 		break;
 	case(73) :
 	case(105) :
 			  // zoom in - I or i
 			  translate_z += 1.0;
+			  zoom_level += 1.0;
 			  printf("zoom in: translate_z=%f\n", translate_z);
 		break;
 
 	case(76) :
 	case(108): // zoom out x10 - l or L
 		translate_z -= 10.0;
+		zoom_level -= 10.0;
 		printf("zoom out: translate_z=%f\n", translate_z);
 		break;
 	case(79) :
 	case(111) :
 			  // zoom out - O or o
 			  translate_z -= 1.0;
+			  zoom_level -= 1.0;
 			  printf("zoom out: translate_z=%f\n", translate_z);
 		break;
 
@@ -1011,16 +775,14 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 		fflush(stdout);
 		break;
 	}
+	checkGLError("keyboard");
 }
 
 
 void close() {
 	deleteVBO(&sphereVerts);
-	deleteVBO(&sphereNormals);
-
-	deleteTBO(&EV_default_cgr, &EV_default_tbo);
-	deleteTBO(&SecretoryCell_s_default_cgr, &SecretoryCell_default_tbo);
-	deleteTBO(&CiliaryCell_c_default_cgr, &CiliaryCell_default_tbo);
+	deleteVBO(&vboIdSecretory);
+	deleteVBO(&vboIdCiliary);
 
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
@@ -1046,6 +808,7 @@ void mouse(int button, int state, int x, int y)
 	mouse_old_x = x;
 	mouse_old_y = y;
 	glutPostRedisplay();
+	checkGLError("mouse");
 }
 
 void motion(int x, int y)
@@ -1064,13 +827,14 @@ void motion(int x, int y)
 
 	mouse_old_x = x;
 	mouse_old_y = y;
+	//checkGLError("motion");
 }
 
-void checkGLError(){
+void checkGLError(char* caller){
 	int Error;
 	if ((Error = glGetError()) != GL_NO_ERROR)
 	{
 		const char* Message = (const char*)gluErrorString(Error);
-		fprintf(stderr, "OpenGL Error : %s\n", Message);
+		fprintf(stderr, "OpenGL Error (caller:%s) [%d] : %s \n", caller, Error, Message);
 	}
 }
