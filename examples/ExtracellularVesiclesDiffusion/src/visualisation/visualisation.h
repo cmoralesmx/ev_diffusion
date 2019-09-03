@@ -25,7 +25,7 @@ const unsigned int WINDOW_HEIGHT = 900;
 
 //frustrum
 const double NEAR_CLIP = 0.005;
-const double FAR_CLIP = 4000;
+const double FAR_CLIP = 6000;
 
 //Circle model fidelity
 const int SPHERE_SLICES = 8;

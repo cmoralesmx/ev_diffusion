@@ -44,7 +44,7 @@ GLuint vboIdSecretory;
 GLuint vaoIdSecretory;
 GLuint vaoIdCiliary;
 cudaGraphicsResource *CGRsecretory, *CGRciliary;
-bool display_secretory = true;
+bool display_walls = true;
 bool evPts = true;
 
 //Simulation output buffers/textures
@@ -65,7 +65,8 @@ GLuint ciliary_shaderProgram;
 GLuint sphereVerts;
 
 Shader *evPtsShader, *evGeoShader;
-Shader *secretoryShader;Shader *ciliaryShader;
+Shader *secretoryShader;
+Shader *ciliaryShader;
 
 // mouse controls
 int mouse_old_x, mouse_old_y;
@@ -195,7 +196,11 @@ void initVisualisation()
 	glutMotionFunc(motion);
 
 	glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
-		evPtsShader = new Shader("./shaders/ev_points_vs.glsl", "./shaders/ev_points_fs.glsl");	evGeoShader = new Shader("./shaders/ev_spheres_vs.glsl", "./shaders/ev_spheres_fs.glsl", "./shaders/ev_spheres_gs.glsl");	secretoryShader = new Shader("./shaders/cells_secretory_vs.glsl", "./shaders/cells_all_fs.glsl");	ciliaryShader = new Shader("./shaders/cells_ciliary_vs.glsl", "./shaders/cells_all_fs.glsl");
+	
+	evPtsShader = new Shader("./shaders/ev_points_vs.glsl", "./shaders/ev_points_fs.glsl");
+	evGeoShader = new Shader("./shaders/ev_spheres_vs.glsl", "./shaders/ev_spheres_fs.glsl", "./shaders/ev_spheres_gs.glsl");
+	secretoryShader = new Shader("./shaders/cells_secretory_vs.glsl", "./shaders/cells_all_fs.glsl");
+	ciliaryShader = new Shader("./shaders/cells_ciliary_vs.glsl", "./shaders/cells_all_fs.glsl");
 	
 	// create VBO's
 	createVBO(&sphereVerts, get_agent_EV_MAX_count() * sizeof(glm::vec3));
@@ -218,6 +223,30 @@ void runVisualisation(){
 	int tile_size;
 	dim3 grid;
 	dim3 threads;
+
+	float min_x = glm::min(glm::min(min_CiliaryCell_c_default_p1_x_variable(), min_CiliaryCell_c_default_p2_x_variable()),
+		glm::min(min_SecretoryCell_s_default_p1_x_variable(), min_SecretoryCell_s_default_p2_x_variable()));
+	float min_y = glm::min(glm::min(min_CiliaryCell_c_default_p1_y_variable(), min_CiliaryCell_c_default_p2_y_variable()),
+		glm::min(min_SecretoryCell_s_default_p1_y_variable(), min_SecretoryCell_s_default_p2_y_variable()));
+	float max_x = glm::max(glm::max(max_CiliaryCell_c_default_p1_x_variable(), max_CiliaryCell_c_default_p2_x_variable()),
+		glm::max(max_SecretoryCell_s_default_p1_x_variable(), max_SecretoryCell_s_default_p2_x_variable()));
+	float max_y = glm::max(glm::max(max_CiliaryCell_c_default_p1_y_variable(), max_CiliaryCell_c_default_p2_y_variable()),
+		glm::max(max_SecretoryCell_s_default_p1_y_variable(), max_SecretoryCell_s_default_p2_y_variable()));
+	glm::vec2 center;
+	model = glm::mat4(1);
+	if (max_y - min_y > max_x - min_x) {
+		// the model is taller than wider, we need to rotate it to maximise screen space usage
+		model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0, 0, 1.0f));
+		center = glm::vec2((max_y - min_y)/2.0f, (max_x - min_x)/2.0f);
+		printf("ROTATED Model coordinate ranges x:[%4.2f - %4.2f], y:[%4.2f - %4.2f]\n", min_y, max_y, min_x, max_x);
+	}
+	else {
+		center = glm::vec2((max_x - min_x) / 2.0f, (max_y - min_y) / 2.0f);
+		printf("Model coordinate ranges x:[%4.2f - %4.2f], y:[%4.2f - %4.2f]\n", min_x, max_x, min_y, max_y);
+	}
+	model = glm::translate(model, glm::vec3(-center, 0));
+
+	
 
 	if (get_agent_SecretoryCell_s_default_count() > 0) {
 		size = get_agent_SecretoryCell_MAX_count() * 4 * sizeof(float);
@@ -401,7 +430,6 @@ void display()
 	glLightfv(GL_LIGHT0, GL_POSITION, LIGHT_POSITION);
 	checkGLError("display 0");
 
-	model = glm::mat4(1);
 	view = glm::translate(glm::mat4(1), glm::vec3(offset_x, offset_y, zoom_level));
 	glm::mat4 mv = view * model;
 	glm::mat4 mvp = projection * view * model;
@@ -427,33 +455,34 @@ void display()
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 	checkGLError("display 1b");
-		
-	if (get_agent_SecretoryCell_s_default_count() > 0) {
-		secretoryShader->use();
-		secretoryShader->setMat4("mvp", mvp);
+	
+	if (display_walls) {
+		if (get_agent_SecretoryCell_s_default_count() > 0) {
+			secretoryShader->use();
+			secretoryShader->setMat4("mvp", mvp);
 
-		glBindBuffer(GL_ARRAY_BUFFER, vboIdSecretory);
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
-		glEnableVertexAttribArray(0);
+			glBindBuffer(GL_ARRAY_BUFFER, vboIdSecretory);
+			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+			glEnableVertexAttribArray(0);
 
-		glDrawArrays(GL_LINES, 0, 4 * get_agent_SecretoryCell_s_default_count());
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
+			glDrawArrays(GL_LINES, 0, 4 * get_agent_SecretoryCell_s_default_count());
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+		}
+		checkGLError("display 2");
+
+		if (get_agent_CiliaryCell_c_default_count() > 0) {
+			ciliaryShader->use();
+			ciliaryShader->setMat4("mvp", mvp);
+
+			glBindBuffer(GL_ARRAY_BUFFER, vboIdCiliary);
+			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+			glEnableVertexAttribArray(0);
+
+			glDrawArrays(GL_LINES, 0, 4 * get_agent_CiliaryCell_c_default_count());
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+		}
+		checkGLError("display 3");
 	}
-	checkGLError("display 2");
-		
-	if (get_agent_CiliaryCell_c_default_count() > 0) {
-		ciliaryShader->use();
-		ciliaryShader->setMat4("mvp", mvp);
-
-		glBindBuffer(GL_ARRAY_BUFFER, vboIdCiliary);
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
-		glEnableVertexAttribArray(0);
-
-		glDrawArrays(GL_LINES, 0, 4 * get_agent_CiliaryCell_c_default_count());
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-	}
-	checkGLError("display 3");
-		
 	//CUDA stop timing
 	cudaEventRecord(stop);
 	glFlush();
@@ -482,86 +511,77 @@ void display()
 ////////////////////////////////////////////////////////////////////////////////
 //! Keyboard events handler
 ////////////////////////////////////////////////////////////////////////////////
+#define KEY_A 65
+// 68 D, 100 d
+#define KEY_P 80
+#define KEY_Q 81
+#define KEY_S 83
+#define KEY_W 87
+#define KEY_X 88
+#define KEY_Z 90
+#define KEY_a 97
+#define KEY_p 112
+#define KEY_q 113
+#define KEY_s 115
+#define KEY_w 119
+#define KEY_x 120
+#define KEY_z 122
+#define KEY_ESC 27
+#define KEY_SPACE_BAR 32
 void keyboard(unsigned char key, int /*x*/, int /*y*/)
 {
 	switch (key) {
-
-	case(87) :
-	case(119) :
-			  // W == 87, w == 119
-			  offset_y -= 1;
-		//printf("offset_y=%f", offset_y);
-		break;
-	case(65) :
-	case(97) :
-			 // A == 65, a == 97
-			 offset_x += 1;
-		//printf("offset_x=%f", offset_x);
-		break;
-	case(83) :
-	case(115) :
-			  // S == 83, s == 115
-			  offset_y += 1;
-		//printf("offset_y=%f", offset_y);
-		break;
-
-	case(68) :
-	case(100) :
-			  // D == 68, d == 100
-			  offset_x -= 1;
-		//printf("offset_x=%f", offset_x);
-		break;
-
-	case(75) :
-	case(107): // xoom in x 10 - k or K
-		//translate_z += 10.0;
+	//case(GLUT_KEY_DOWN):
+	//	offset_y -= 1;
+	//	break;
+	//case(GLUT_KEY_UP): // same value as e key???
+	//	offset_y += 1;
+	//	break;
+	//case(GLUT_KEY_RIGHT):
+	//	offset_x += 1;
+	//	break;
+	//case(GLUT_KEY_LEFT):
+	//	offset_x -= 1;
+	//	break;
+	case(KEY_s):
+	case(KEY_S): 
 		zoom_level += 10.0;
-		//printf("zoom in: translate_z=%f\n", translate_z);
 		break;
-	case(73) :
-	case(105) :
-			  // zoom in - I or i
-			  //translate_z += 1.0;
-			  zoom_level += 1.0;
-			  //printf("zoom in: translate_z=%f\n", translate_z);
+	case(KEY_a):
+	case(KEY_A):
+		zoom_level += 1.0;
 		break;
-
-	case(76) :
-	case(108): // zoom out x10 - l or L
-		//translate_z -= 10.0;
+	case(KEY_x):
+	case(KEY_X):
 		zoom_level -= 10.0;
-		//printf("zoom out: translate_z=%f\n", translate_z);
 		break;
-	case(79) :
-	case(111) :
-			  // zoom out - O or o
-			  //translate_z -= 1.0;
-			  zoom_level -= 1.0;
-			  //printf("zoom out: translate_z=%f\n", translate_z);
+	case(KEY_z):
+	case(KEY_Z):
+		zoom_level -= 1.0;
 		break;
-
-		// P == 80, p == 112
-	case(80) :
-	case(112) :
-			  if (paused)
-				  printf("un-paused\n");
-			  else
-				  printf("paused\n");
+	case(KEY_SPACE_BAR):
+		if (paused)
+			printf("un-paused\n");
+		else
+			printf("paused\n");
 		paused = !paused;
 		break;
-		// E == 69, e == 101
-	case(69):
-	case(101):
+	case(KEY_q):
+	case(KEY_Q):
 		evPts = !evPts;
 		break;
-		// Esc == 27
-	case(27) :
-		
+	case(KEY_w):
+	case(KEY_W):
+		display_walls = !display_walls;
+		break;
+	case(KEY_ESC) :
 		exit(EXIT_SUCCESS);
-		// Space == 32
-	case(GLUT_KEY_RIGHT) :
+	case(GLUT_KEY_SHIFT_L) :
 		singleIteration();
 		fflush(stdout);
+		break;
+	default:
+		printf("key: %u\n", key);
 		break;
 	}
 	checkGLError("keyboard");
@@ -607,11 +627,11 @@ void motion(int x, int y)
 	dy = (float)(y - mouse_old_y);
 
 	if (mouse_buttons & 1) {
-		offset_y += dy * 0.2f;
+		offset_y -= dy * 0.2f;
 		offset_x += dx * 0.2f;
 	}
 	else if (mouse_buttons & 4) {
-		zoom_level += (float)(dy * VIEW_DISTANCE * 0.001);
+		zoom_level += (float)(dy * VIEW_DISTANCE * 0.01);
 	}
 
 	mouse_old_x = x;
