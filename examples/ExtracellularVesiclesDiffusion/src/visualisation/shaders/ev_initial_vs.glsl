@@ -14,6 +14,7 @@ uniform mat4 mvp;
 
 void main(){
 	vertex.radius = radius * 2.0f;
+	/*
 	if(radius < 0.06)
 		vertex.sphereColor = vec3(1., 0., 0.);
 	else if (radius < 0.08)
@@ -26,9 +27,9 @@ void main(){
 		vertex.sphereColor = vec3(1., 1., 0.);
 	else
 		vertex.sphereColor = vec3(1., 0., 1.);
-
+	*/
 	vec4 transformedPosition = mvp * vec4(position, 0., 1.);
-
+	vertex.sphereColor = vec3(.3, .3, .3);
 	vertex.normalizedViewCoordinate = (transformedPosition.xyz + 1.0) / 2.0;
 	vertex.transformedPosition = transformedPosition;
 

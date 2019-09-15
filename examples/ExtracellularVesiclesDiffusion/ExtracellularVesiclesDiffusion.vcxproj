@@ -138,7 +138,9 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </Link>
     <PostBuildEvent>
       <Command>echo copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"
-copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
+copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"
+mkdir "$(OutDir)shaders"
+copy "$(ProjectDir)src\visualisation\shaders\*.glsl" "$(OutDir)shaders\"</Command>
     </PostBuildEvent>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
@@ -209,7 +211,9 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </Link>
     <PostBuildEvent>
       <Command>echo copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"
-copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
+copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"
+mkdir "$(OutDir)shaders"
+copy "$(ProjectDir)src\visualisation\shaders\*.glsl" "$(OutDir)shaders\"</Command>
     </PostBuildEvent>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>

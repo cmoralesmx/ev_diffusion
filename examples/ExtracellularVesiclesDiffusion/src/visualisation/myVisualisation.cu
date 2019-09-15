@@ -45,10 +45,13 @@ GLuint vaoIdSecretory;
 GLuint vaoIdCiliary;
 cudaGraphicsResource *CGRsecretory, *CGRciliary;
 bool display_walls = true;
-bool evPts = true;
+bool thick_walls = false;
+bool evSpheres = true;
+bool single_iteration_flag = false;
+bool visualisation_enabled = true;
 
 //Simulation output buffers/textures
-cudaGraphicsResource_t EV_default_cgr;
+cudaGraphicsResource_t EV_default_cgr, EV_initial_cgr;
 // vertex Shader
 GLuint vertexShader;
 GLuint fragmentShader;
@@ -62,11 +65,11 @@ GLuint ciliary_vertexShader;
 GLuint ciliary_shaderProgram;
 
 // bo variables
-GLuint sphereVerts;
+GLuint sphereVerts, sphereInitialVerts;
 
-Shader *evPtsShader, *evGeoShader;
-Shader *secretoryShader;
-Shader *ciliaryShader;
+Shader *evPtsShader, *evGeoShader, *evInitialShader;
+Shader *secretoryShader, *secretoryThickShader;
+Shader *ciliaryShader, *ciliaryThickShader;
 
 // mouse controls
 int mouse_old_x, mouse_old_y;
@@ -155,18 +158,39 @@ __device__ int copyVertexToVBO(glm::vec2* vbo, int index, float p1_x, float p1_y
 	return 0;
 }
 
-__global__ void output_SecretoryCell_agent_to_VBO(xmachine_memory_SecretoryCell_list* agents, glm::vec2* vbo) {
+__global__ void output_SecretoryCell_agent_to_VBO(xmachine_memory_SecretoryCell_list* agents, float* vbo) {
 
 	//global thread index
 	int index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	copyVertexToVBO(vbo, index, agents->p1_x[index], agents->p1_y[index], agents->p2_x[index], agents->p2_y[index], 1.0);
+	int index2 = index * 8;
+
+	vbo[index2] = agents->p1_x[index];
+	vbo[index2 + 1] = agents->p1_y[index];
+	vbo[index2 + 2] = agents->unit_normal_x[index];
+	vbo[index2 + 3] = agents->unit_normal_y[index];
+
+	vbo[index2 + 4] = agents->p2_x[index];
+	vbo[index2 + 5] = agents->p2_y[index];
+	vbo[index2 + 6] = 0; // agents->unit_normal_x[index];
+	vbo[index2 + 7] = 0; // agents->unit_normal_y[index];
+	//copyVertexToVBO(vbo, index, agents->p1_x[index], agents->p1_y[index], agents->p2_x[index], agents->p2_y[index], 1.0);
 }
 
-__global__ void output_CiliaryCell_agent_to_VBO(xmachine_memory_CiliaryCell_list* agents, glm::vec2* vbo) {
+__global__ void output_CiliaryCell_agent_to_VBO(xmachine_memory_CiliaryCell_list* agents, float* vbo) {
 
 	//global thread index
 	int index = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	copyVertexToVBO(vbo, index, agents->p1_x[index], agents->p1_y[index],  agents->p2_x[index], agents->p2_y[index], 0.0);
+	int index2 = index * 8;
+
+	vbo[index2] = agents->p1_x[index];
+	vbo[index2 + 1] = agents->p1_y[index];
+	vbo[index2 + 2] = agents->unit_normal_x[index];
+	vbo[index2 + 3] = agents->unit_normal_y[index];
+
+	vbo[index2 + 4] = agents->p2_x[index];
+	vbo[index2 + 5] = agents->p2_y[index];
+	vbo[index2 + 6] = 0; // agents->unit_normal_x[index];
+	vbo[index2 + 7] = 0;
 }
 
 void initVisualisation()
@@ -199,14 +223,20 @@ void initVisualisation()
 	
 	evPtsShader = new Shader("./shaders/ev_points_vs.glsl", "./shaders/ev_points_fs.glsl");
 	evGeoShader = new Shader("./shaders/ev_spheres_vs.glsl", "./shaders/ev_spheres_fs.glsl", "./shaders/ev_spheres_gs.glsl");
-	secretoryShader = new Shader("./shaders/cells_secretory_vs.glsl", "./shaders/cells_all_fs.glsl");
-	ciliaryShader = new Shader("./shaders/cells_ciliary_vs.glsl", "./shaders/cells_all_fs.glsl");
+	evInitialShader = new Shader("./shaders/ev_initial_vs.glsl", "./shaders/ev_initial_fs.glsl", "./shaders/ev_initial_gs.glsl");
+	
+	secretoryShader = new Shader("./shaders/cells_all_thin_vs.glsl", "./shaders/cells_secretory_fs.glsl");
+	secretoryThickShader = new Shader("./shaders/cells_all_thick_vs.glsl", "./shaders/cells_secretory_fs.glsl", "./shaders/cells_all_thick_gs.glsl");
+	ciliaryShader = new Shader("./shaders/cells_all_thin_vs.glsl", "./shaders/cells_ciliary_fs.glsl");
+	ciliaryThickShader = new Shader("./shaders/cells_all_thick_vs.glsl", "./shaders/cells_ciliary_fs.glsl", "./shaders/cells_all_thick_gs.glsl");
 	
 	// create VBO's
 	createVBO(&sphereVerts, get_agent_EV_MAX_count() * sizeof(glm::vec3));
-	
 	// registers a GraphicsGLResource with CUDA for interop access
 	gpuErrchk(cudaGraphicsGLRegisterBuffer(&EV_default_cgr, sphereVerts, cudaGraphicsMapFlagsNone));
+
+	createVBO(&sphereInitialVerts, get_agent_EV_MAX_count() * sizeof(glm::vec3));
+	gpuErrchk(cudaGraphicsGLRegisterBuffer(&EV_initial_cgr, sphereInitialVerts, cudaGraphicsMapFlagsNone));
 
 	//create a events for timer
 	cudaEventCreate(&start);
@@ -241,7 +271,7 @@ void runVisualisation(){
 		printf("ROTATED Model coordinate ranges x:[%4.2f - %4.2f], y:[%4.2f - %4.2f]\n", min_y, max_y, min_x, max_x);
 	}
 	else {
-		center = glm::vec2((max_x - min_x) / 2.0f, (max_y - min_y) / 2.0f);
+		center = glm::vec2((max_x - min_x) / 2.0f, ((max_y - min_y) / 2.0f)*1.4f);
 		printf("Model coordinate ranges x:[%4.2f - %4.2f], y:[%4.2f - %4.2f]\n", min_x, max_x, min_y, max_y);
 	}
 	model = glm::translate(model, glm::vec3(-center, 0));
@@ -249,12 +279,12 @@ void runVisualisation(){
 	
 
 	if (get_agent_SecretoryCell_s_default_count() > 0) {
-		size = get_agent_SecretoryCell_MAX_count() * 4 * sizeof(float);
+		size = get_agent_SecretoryCell_MAX_count() * 8 * sizeof(float);
 		createVBO(&vboIdSecretory, size);
 		gpuErrchk(cudaGraphicsGLRegisterBuffer(&CGRsecretory, vboIdSecretory, cudaGraphicsMapFlagsReadOnly));
 		checkGLError("createVBO - secretory");
 
-		glm::vec2 *secretory_dptr;
+		float *secretory_dptr;
 		size_t size_secretory;
 		// map OpenGL buffer object for writing from CUDA
 		gpuErrchk(cudaGraphicsMapResources(1, &CGRsecretory, 0));
@@ -273,12 +303,12 @@ void runVisualisation(){
 	}
 
 	if (get_agent_CiliaryCell_c_default_count() > 0) {
-		size = get_agent_CiliaryCell_MAX_count() * 4 * sizeof(float);
+		size = get_agent_CiliaryCell_MAX_count() * 8 * sizeof(float);
 		createVBO(&vboIdCiliary, size);
 		gpuErrchk(cudaGraphicsGLRegisterBuffer(&CGRciliary, vboIdCiliary, cudaGraphicsMapFlagsReadOnly));
 		checkGLError("createVBO - ciliary");
 
-		glm::vec2 *ciliary_dptr;
+		float *ciliary_dptr;
 		size_t size_ciliary;
 		// map OpenGL buffer object for writing from CUDA
 		gpuErrchk(cudaGraphicsMapResources(1, &CGRciliary, 0));
@@ -305,7 +335,7 @@ void runVisualisation(){
 ////////////////////////////////////////////////////////////////////////////////
 void runCuda()
 {
-	if (!paused){
+	if (!paused || (paused && single_iteration_flag)){
 #ifdef SIMULATION_DELAY
 		delay_count++;
 		if (delay_count == SIMULATION_DELAY){
@@ -315,6 +345,8 @@ void runCuda()
 #else
 		singleIteration();
 		++iterations;
+		if(single_iteration_flag)
+			single_iteration_flag = false;
 #endif
 	}
 
@@ -324,9 +356,9 @@ void runCuda()
 	dim3 grid;
 	dim3 threads;
 
-	glm::vec3 *dptr;
+	glm::vec3 *dptr, *dptr_initial;
 
-	if (get_agent_EV_default_count() > 0)
+	if (get_agent_EV_default_count() > 0 && visualisation_enabled)
 	{
 		size_t accessibleBufferSize = 0;
 		// map OpenGL buffer object for writing from CUDA
@@ -341,6 +373,22 @@ void runCuda()
 		gpuErrchkLaunch();
 		// unmap buffer object
 		gpuErrchk(cudaGraphicsUnmapResources(1, &EV_default_cgr));
+	}
+	if (get_agent_EV_initial_count() > 0 && visualisation_enabled)
+	{
+		size_t accessibleBufferSize = 0;
+		// map OpenGL buffer object for writing from CUDA
+		gpuErrchk(cudaGraphicsMapResources(1, &EV_initial_cgr));
+		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&dptr_initial, &accessibleBufferSize, EV_initial_cgr));
+		//cuda block size
+		tile_size = (int)ceil((float)get_agent_EV_initial_count() / threads_per_tile);
+		grid = dim3(tile_size, 1, 1);
+		threads = dim3(threads_per_tile, 1, 1);
+
+		output_EV_agent_to_VBO << < grid, threads >> >(get_device_EV_initial_agents(), dptr_initial);
+		gpuErrchkLaunch();
+		// unmap buffer object
+		gpuErrchk(cudaGraphicsUnmapResources(1, &EV_initial_cgr));
 	}
 }
 
@@ -436,12 +484,12 @@ void display()
 
 	//Draw EV Agents in default state
 	if (get_agent_EV_default_count() > 0) {
-		if (evPts) {
-			evPtsShader->use();
-			evPtsShader->setMat4("mvp", mvp);
+		if (evSpheres) {
+			evGeoShader->use();
+			evGeoShader->setMat4("mvp", mvp);
 		}
 		else {
-			evGeoShader->use();
+			evPtsShader->use();
 			evPtsShader->setMat4("mvp", mvp);
 		}
 
@@ -455,15 +503,39 @@ void display()
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 	checkGLError("display 1b");
-	
+	if (get_agent_EV_initial_count() > 0) {
+		evInitialShader->use();
+		evInitialShader->setMat4("mvp", mvp);
+
+		glBindBuffer(GL_ARRAY_BUFFER, sphereInitialVerts);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)(2 * sizeof(float)));
+		glEnableVertexAttribArray(1);
+
+		glDrawArrays(GL_POINTS, 0, get_agent_EV_initial_count());
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+	}
+	checkGLError("display 1c");
+	// Walls
 	if (display_walls) {
 		if (get_agent_SecretoryCell_s_default_count() > 0) {
-			secretoryShader->use();
-			secretoryShader->setMat4("mvp", mvp);
+			if (thick_walls) {
+				secretoryThickShader->use();
+				secretoryThickShader->setMat4("mvp", mvp);
+			}
+			else {
+				secretoryShader->use();
+				secretoryShader->setMat4("mvp", mvp);
+			}
 
 			glBindBuffer(GL_ARRAY_BUFFER, vboIdSecretory);
-			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+			// position
+			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
 			glEnableVertexAttribArray(0);
+			// unit normal
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+			glEnableVertexAttribArray(1);
 
 			glDrawArrays(GL_LINES, 0, 4 * get_agent_SecretoryCell_s_default_count());
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -471,12 +543,20 @@ void display()
 		checkGLError("display 2");
 
 		if (get_agent_CiliaryCell_c_default_count() > 0) {
-			ciliaryShader->use();
-			ciliaryShader->setMat4("mvp", mvp);
+			if (thick_walls) {
+				ciliaryThickShader->use();
+				ciliaryThickShader->setMat4("mvp", mvp);
+			}
+			else {
+				ciliaryShader->use();
+				ciliaryShader->setMat4("mvp", mvp);
+			}
 
 			glBindBuffer(GL_ARRAY_BUFFER, vboIdCiliary);
-			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
 			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+			glEnableVertexAttribArray(1);
 
 			glDrawArrays(GL_LINES, 0, 4 * get_agent_CiliaryCell_c_default_count());
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -513,16 +593,24 @@ void display()
 ////////////////////////////////////////////////////////////////////////////////
 #define KEY_A 65
 // 68 D, 100 d
+#define KEY_E 69
+#define KEY_N 78
 #define KEY_P 80
 #define KEY_Q 81
 #define KEY_S 83
+#define KEY_T 84
+#define KEY_V 86
 #define KEY_W 87
 #define KEY_X 88
 #define KEY_Z 90
 #define KEY_a 97
+#define KEY_e 101
+#define KEY_n 110
 #define KEY_p 112
 #define KEY_q 113
 #define KEY_s 115
+#define KEY_t 116
+#define KEY_v 118
 #define KEY_w 119
 #define KEY_x 120
 #define KEY_z 122
@@ -531,18 +619,6 @@ void display()
 void keyboard(unsigned char key, int /*x*/, int /*y*/)
 {
 	switch (key) {
-	//case(GLUT_KEY_DOWN):
-	//	offset_y -= 1;
-	//	break;
-	//case(GLUT_KEY_UP): // same value as e key???
-	//	offset_y += 1;
-	//	break;
-	//case(GLUT_KEY_RIGHT):
-	//	offset_x += 1;
-	//	break;
-	//case(GLUT_KEY_LEFT):
-	//	offset_x -= 1;
-	//	break;
 	case(KEY_s):
 	case(KEY_S): 
 		zoom_level += 10.0;
@@ -561,22 +637,40 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 		break;
 	case(KEY_SPACE_BAR):
 		if (paused)
-			printf("un-paused\n");
+			printf("Simulation un-paused\n");
 		else
-			printf("paused\n");
+			printf("Simulation paused\n");
 		paused = !paused;
+		break;
+	case(KEY_V):
+	case(KEY_v):
+		visualisation_enabled = !visualisation_enabled;
+		if (visualisation_enabled)
+			printf("Visualisation enabled\n");
+		else
+			printf("Visualisation disabled\n");
 		break;
 	case(KEY_q):
 	case(KEY_Q):
-		evPts = !evPts;
+		evSpheres = !evSpheres;
+		if (evSpheres)
+			printf("Display EVs as fake spheres\n"); 
+		else
+			printf("Display EVs as points\n");
 		break;
 	case(KEY_w):
 	case(KEY_W):
 		display_walls = !display_walls;
 		break;
+	case(KEY_T):
+	case(KEY_t):
+		thick_walls = !thick_walls;
+		break;
 	case(KEY_ESC) :
 		exit(EXIT_SUCCESS);
-	case(GLUT_KEY_SHIFT_L) :
+	case(KEY_N):
+	case(KEY_n):
+		single_iteration_flag = true;
 		singleIteration();
 		fflush(stdout);
 		break;
