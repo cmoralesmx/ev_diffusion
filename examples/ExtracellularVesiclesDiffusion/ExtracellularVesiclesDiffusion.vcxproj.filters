@@ -75,6 +75,9 @@
     <Filter Include="visualisation">
       <UniqueIdentifier>{19aa7ca1-80be-4c38-97ec-b46c207b3984}</UniqueIdentifier>
     </Filter>
+    <Filter Include="visualisation\shaders">
+      <UniqueIdentifier>{6ad38d38-2c82-4931-a25a-d02c5ee244ea}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\model\functions.c">
@@ -98,5 +101,46 @@
     <Xsd Include="..\..\FLAMEGPU\schemas\XMMLGPU.xsd">
       <Filter>schemas</Filter>
     </Xsd>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\visualisation\shaders\cells_all_thick_gs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\cells_all_thick_vs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\cells_all_thin_vs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\cells_ciliary_fs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\cells_secretory_fs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\ev_initial_fs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\ev_initial_gs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\ev_initial_vs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\ev_points_fs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\ev_points_vs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\ev_spheres_fs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\ev_spheres_gs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
+    <None Include="src\visualisation\shaders\ev_spheres_vs.glsl">
+      <Filter>visualisation\shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

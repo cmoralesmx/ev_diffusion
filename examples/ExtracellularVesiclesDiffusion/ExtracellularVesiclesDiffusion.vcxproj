@@ -317,6 +317,21 @@ copy "$(ProjectDir)src\visualisation\shaders\*.glsl" "$(OutDir)shaders\"</Comman
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug_Visualisation|x64'">true</ExcludedFromBuild>
     </Xsd>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="src\visualisation\shaders\cells_all_thick_gs.glsl" />
+    <None Include="src\visualisation\shaders\cells_all_thick_vs.glsl" />
+    <None Include="src\visualisation\shaders\cells_all_thin_vs.glsl" />
+    <None Include="src\visualisation\shaders\cells_ciliary_fs.glsl" />
+    <None Include="src\visualisation\shaders\cells_secretory_fs.glsl" />
+    <None Include="src\visualisation\shaders\ev_initial_fs.glsl" />
+    <None Include="src\visualisation\shaders\ev_initial_gs.glsl" />
+    <None Include="src\visualisation\shaders\ev_initial_vs.glsl" />
+    <None Include="src\visualisation\shaders\ev_points_fs.glsl" />
+    <None Include="src\visualisation\shaders\ev_points_vs.glsl" />
+    <None Include="src\visualisation\shaders\ev_spheres_fs.glsl" />
+    <None Include="src\visualisation\shaders\ev_spheres_gs.glsl" />
+    <None Include="src\visualisation\shaders\ev_spheres_vs.glsl" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 8.0.targets" />
