@@ -104,9 +104,8 @@
         <description>Boolean flag</description>
         <defaultValue>1</defaultValue>
       </gpu:variable>
-      <!-- introduce_n_new_evs -->
+      <!-- introduce_new_evs -->
       <gpu:variable>
-        <!-- the number of evs the population must increase by -->
         <type>int</type>
         <name>introduce_new_evs</name>
         <defaultValue>0</defaultValue>
@@ -131,14 +130,14 @@
         <description>The timestep of the model</description>
         <defaultValue>0.003967782</defaultValue>
       </gpu:variable>
-      <!-- Degrees of Freedom -->
+      <!-- degrees of Freedom -->
       <gpu:variable>
         <type>int</type>
         <name>dof</name>
         <description>Degrees of Freedom in the model</description>
         <defaultValue>1</defaultValue>
       </gpu:variable>
-      <!-- number of initial iterations with ballistic movement -->
+      <!-- seconds_in_initial_state -->
       <gpu:variable>
         <type>int</type>
         <name>seconds_in_initial_state</name>
@@ -1325,7 +1324,7 @@
         </gpu:variable>
       </variables>
       <gpu:partitioningNone/>
-      <gpu:bufferSize>65536</gpu:bufferSize>
+      <gpu:bufferSize>524288</gpu:bufferSize>
     </gpu:message>
     <!-- secretory cell collision message -->
     <gpu:message>
@@ -1403,7 +1402,7 @@
         <!-- for cells ends -->
       </variables>
       <gpu:partitioningNone/>
-      <gpu:bufferSize>65536</gpu:bufferSize>
+      <gpu:bufferSize>524288</gpu:bufferSize>
     </gpu:message>
   </messages>
   
