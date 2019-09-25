@@ -150,6 +150,12 @@
         <description>Largest EV radius possible in the system (must subtract the min_ev_radius value)</description>
         <defaultValue>120</defaultValue>
       </gpu:variable>
+
+      <gpu:variable>
+        <type>int</type>
+        <name>ev_viability</name>
+        <defaultValue>3600</defaultValue>
+      </gpu:variable>
     </gpu:constants>
     
     <gpu:functionFiles>
@@ -1023,6 +1029,22 @@
           <nextState>initial</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
+        <gpu:function>
+          <name>kill_ev</name>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <condition>
+            <lhs>
+              <agentVariable>age</agentVariable>
+            </lhs>
+            <operator>&gt;</operator>
+            <rhs>
+              <value>ev_viability</value>
+            </rhs>
+          </condition>
+          <gpu:reallocate>true</gpu:reallocate>
+	  <gpu:RNG>true</gpu:RNG>
+        </gpu:function>
       </functions>
       
       <states>
@@ -1496,6 +1518,11 @@
     <!-- Vesicles involved in a collision, reset state -->
     <layer>
       <gpu:layerFunction>
+        <name>kill_ev</name>
+      </gpu:layerFunction>
+    </layer>
+    <layer>
+      <gpu:layerFunction>
         <name>reset_state</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
@@ -1504,15 +1531,14 @@
     </layer>
     
     <!-- Compute the velocity of the particle for this step -->
-    <layer>
-      <!-- due to the effects of brownian motion -->
-      <gpu:layerFunction>
+    <!-- <layer>
+	    <gpu:layerFunction>
         <name>brownian_movement_1d</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
         <name>brownian_movement_2d_v3</name>
       </gpu:layerFunction>
-    </layer>
+	    </layer> -->
     <!-- Integrate the forces and compute the potential new position -->
     <layer>
       <gpu:layerFunction><name>move</name></gpu:layerFunction>

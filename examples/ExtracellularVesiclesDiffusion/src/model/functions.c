@@ -708,16 +708,14 @@ __device__ float4 solve_collision_ev_default_ev_default(float2 ev1_loc, float2 e
 	float L = min_distance - dist_length;
 	float2 normal_velo_subtracted = float2_sub(normal_velocity1, normal_velocity2);
 	float vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
+	float fac = L/vrel;
+//	if(vrel < 0.001 && L < 0.001) fac = 0;
+	if(fac>10) fac = 1;
 	//float2 new_ev1_loc = add_scaled(make_float2(0, 0), normal_velocity1, -L / vrel);
 	float dp = float2_dot(normal_velocity1, normal_velocity2);
 	
 	float2 new_ev1_loc;
-	//if(dp<0){
-		// EVs in opposite direction
-		new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, -L / vrel);
-	//} else {
-	//	new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, L / vrel);
-	//}
+	new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, -fac);
 
 	// normal velocity components after the impact
 	float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);
@@ -1151,16 +1149,27 @@ __FLAME_GPU_FUNC__ int brownian_movement_2d_v2(xmachine_memory_EV* agent, RNG_ra
 __FLAME_GPU_FUNC__ int brownian_movement_2d_v3(xmachine_memory_EV* agent, RNG_rand48* rand48) {
 	float u1, u2, r, theta;
 	
-	//u1 = rnd<CONTINUOUS>(rand48);
-	u2 = rnd<CONTINUOUS>(rand48);
-	//agent->bm_impulse_t_left = 0; // rnd<CONTINUOUS>(rand48);
-	// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
-	// compute the radius of a circumference
-	r = sqrt(agent->vx * agent->vx + agent->vy * agent->vy); // we factor this radius by 0.1 to keep the values within [-1,1]
-	theta = 2 * M_PI * u2; // computes the angle of rotation
-	agent->bm_vx = (r * cos(theta));
-	agent->bm_vy = (r * sin(theta));
+	u1 = rnd<CONTINUOUS>(rand48);
+	if(u1> 0.5){
+		u2 = rnd<CONTINUOUS>(rand48);
+		//agent->bm_impulse_t_left = 0; // rnd<CONTINUOUS>(rand48);
+		// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
+		// compute the radius of a circumference
+		r = sqrt(agent->vx * agent->vx + agent->vy * agent->vy); // we factor this radius by 0.1 to keep the values within [-1,1]
+		theta = 2 * M_PI * u2; // computes the angle of rotation
+		agent->bm_vx = (r * cos(theta));
+		agent->bm_vy = (r * sin(theta));
+		agent->vx += agent->bm_vx;
+		agent->vy += agent->bm_vy;
+	}
+	return 0;
+}
 
+__FLAME_GPU_FUNC__ int kill_ev(xmachine_memory_EV* agent, RNG_rand48* rand48) {
+	float rn = rnd<CONTINUOUS>(rand48);
+	if(rn > 0.98){
+		return 1;
+	}
 	return 0;
 }
 
@@ -1175,8 +1184,8 @@ __FLAME_GPU_FUNC__ int move(xmachine_memory_EV* agent){
 	agent->x_1 = agent->x;
 	agent->y_1 = agent->y;
 
-	agent->x += (agent->vx) * dt;
-	agent->y += (agent->vy) * dt;
+	agent->x += agent->vx * dt;
+	agent->y += agent->vy * dt;
 
 	agent->age += dt;
     return 0;
