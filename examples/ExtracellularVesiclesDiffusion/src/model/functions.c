@@ -1146,26 +1146,23 @@ __FLAME_GPU_FUNC__ int brownian_movement_2d_v2(xmachine_memory_EV* agent, RNG_ra
 	return 0;
 }
 
-__FLAME_GPU_FUNC__ int brownian_movement_2d_v3(xmachine_memory_EV* agent, RNG_rand48* rand48) {
+__FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
 	float u1, u2, r, theta;
 	
-	u1 = rnd<CONTINUOUS>(rand48);
-	if(u1> 0.5){
-		u2 = rnd<CONTINUOUS>(rand48);
-		//agent->bm_impulse_t_left = 0; // rnd<CONTINUOUS>(rand48);
-		// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
-		// compute the radius of a circumference
-		r = sqrt(agent->vx * agent->vx + agent->vy * agent->vy); // we factor this radius by 0.1 to keep the values within [-1,1]
-		theta = 2 * M_PI * u2; // computes the angle of rotation
-		agent->bm_vx = (r * cos(theta));
-		agent->bm_vy = (r * sin(theta));
-		agent->vx += agent->bm_vx;
-		agent->vy += agent->bm_vy;
-	}
+	//u1 = rnd<CONTINUOUS>(rand48);
+	u2 = rnd<CONTINUOUS>(rand48);
+	//agent->bm_impulse_t_left = 0; // rnd<CONTINUOUS>(rand48);
+	// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
+	// compute the radius of a circumference
+	r = sqrt(agent->vx * agent->vx + agent->vy * agent->vy); // we factor this radius by 0.1 to keep the values within [-1,1]
+	theta = 2 * M_PI * u2; // computes the angle of rotation
+	agent->bm_vx = (r * cos(theta));
+	agent->bm_vy = (r * sin(theta));
+
 	return 0;
 }
 
-__FLAME_GPU_FUNC__ int kill_ev(xmachine_memory_EV* agent, RNG_rand48* rand48) {
+__FLAME_GPU_FUNC__ int kill_ev(xmachine_memory_EV* agent, RNG_rand48* rand48){
 	float rn = rnd<CONTINUOUS>(rand48);
 	if(rn > 0.98){
 		return 1;
@@ -1188,7 +1185,7 @@ __FLAME_GPU_FUNC__ int move(xmachine_memory_EV* agent){
 	agent->y += agent->vy * dt;
 
 	agent->age += dt;
-    return 0;
+    	return 0;
 }
 __FLAME_GPU_FUNC__ int moveInitial(xmachine_memory_EV* agent) {
 
