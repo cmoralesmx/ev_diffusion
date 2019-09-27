@@ -710,12 +710,22 @@ __device__ float4 solve_collision_ev_default_ev_default(float2 ev1_loc, float2 e
 	float vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
 	float fac = L/vrel;
 //	if(vrel < 0.001 && L < 0.001) fac = 0;
-	if(fac>10) fac = 1;
+	if(fac>3) fac = 0;
 	//float2 new_ev1_loc = add_scaled(make_float2(0, 0), normal_velocity1, -L / vrel);
 	float dp = float2_dot(normal_velocity1, normal_velocity2);
 	
 	float2 new_ev1_loc;
-	new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, -fac);
+	if(dp<0){
+		// EVs in opposite direction
+		new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, -fac);
+	} else {
+		// Same direction. the smaller one gets displaced further
+		//if(ev1_mass_ag > ev2_mass_ag){
+		new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, fac);
+		//} else {
+		//	new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, -fac);
+		//}
+	}
 
 	// normal velocity components after the impact
 	float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);

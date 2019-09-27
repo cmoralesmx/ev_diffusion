@@ -1515,12 +1515,12 @@
   </messages>
   
   <layers>
-    <!-- Vesicles involved in a collision, reset state -->
     <layer>
       <gpu:layerFunction>
         <name>kill_ev</name>
       </gpu:layerFunction>
     </layer>
+    <!-- Vesicles involved in a collision, reset state -->
     <layer>
       <gpu:layerFunction>
         <name>reset_state</name>
