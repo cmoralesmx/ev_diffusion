@@ -695,7 +695,7 @@ Computes the new position and velocity after a collision for an agent.
 It can compute the values for two agents involved, however, we can only update one
 active agent at a time
 */
-__device__ float* solve_collision_ev_default_ev_default(float2 ev1_loc, float2 ev1_velo, float ev1_mass_ag, 
+__device__ float4 solve_collision_ev_default_ev_default(float2 ev1_loc, float2 ev1_velo, float ev1_mass_ag, 
 	float2 ev2_loc, float2 ev2_velo, float ev2_mass_ag, float min_distance, float2 dist, float dist_length) {
 	// normal velocity vectors just before the impact
 	float2 normal_velocity1 = float2_project(ev1_velo, dist);
@@ -710,8 +710,8 @@ __device__ float* solve_collision_ev_default_ev_default(float2 ev1_loc, float2 e
 	float2 normal_velo_subtracted = float2_sub(normal_velocity1, normal_velocity2);
 	float vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
 	float fac1 = L/vrel;
-	float fac2 = fac1 > 100? fac1/10 : fac1;
-	float2 new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, -fac2);
+	//float fac2 = fac1 > 100? fac1/10 : fac1;
+	float2 new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, -fac1);
 
 	// normal velocity components after the impact
 	float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);
@@ -725,10 +725,11 @@ __device__ float* solve_collision_ev_default_ev_default(float2 ev1_loc, float2 e
 	float2 new_vel1 = float2_add(normal_velocity1, tangent_velocity1);
 	//float2 new_vel2 = normal_velocity2 + tangent_velocity2;
 
-	return new float[8] {new_ev1_loc.x, new_ev1_loc.y, new_vel1.x, new_vel1.y, fac1, fac2, L, vrel};
+	//return new float[8] {new_ev1_loc.x, new_ev1_loc.y, new_vel1.x, new_vel1.y, fac1, fac2, L, vrel};
+	return make_float4(new_ev1_loc.x, new_ev1_loc.y, new_vel1.x, new_vel1.y);
 }
 
-__device__ float* solve_collision_ev_default_ev_initial(float2 ev1_loc, float2 ev1_velo, float ev1_mass_ag, 
+__device__ float4 solve_collision_ev_default_ev_initial(float2 ev1_loc, float2 ev1_velo, float ev1_mass_ag, 
 	float2 ev2_loc, float2 ev2_velo, float ev2_mass_ag, float min_distance, float2 dist, float dist_length) {
 	// normal velocity vectors just before the impact
 	float2 normal_velocity1 = float2_project(ev1_velo, dist);
@@ -760,7 +761,8 @@ __device__ float* solve_collision_ev_default_ev_initial(float2 ev1_loc, float2 e
 	normal_velocity1 = parallel(dist.x, dist.y, v1);
 	float2 new_vel1 = float2_add(normal_velocity1, tangent_velocity1);
 
-	return new float[8] {newer_ev1_loc.x, newer_ev1_loc.y, new_vel1.x, new_vel1.y, fac1, fac2, L, vrel};
+	//return new float[8] {newer_ev1_loc.x, newer_ev1_loc.y, new_vel1.x, new_vel1.y, fac1, fac2, L, vrel};
+	return make_float4(newer_ev1_loc.x, newer_ev1_loc.y, new_vel1.x, new_vel1.y);
 }
 
 /*
@@ -811,7 +813,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_default(xmachine_memory_EV* 
 	int ev2_id = -1;
 	float ev2_x, ev2_y, ev2_vx, ev2_vy, ev2_mass_ag;
 	float2 distance_vector;
-	float* new_values;
+	float4 new_values;
 
 	xmachine_message_location_ev_default* message = get_first_location_ev_default_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
@@ -849,6 +851,11 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_default(xmachine_memory_EV* 
 		// we store the current position as the previous and update the values accordingly
 		agent->x_1 = agent->x;
 		agent->y_1 = agent->y;
+		agent->x = new_values.x;
+		agent->y = new_values.y;
+		agent->vx = new_values.z;
+		agent->vy = new_values.w;
+                /*
 		agent->x = new_values[0];
 		agent->y = new_values[1];
 		agent->vx = new_values[2];
@@ -859,7 +866,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_default(xmachine_memory_EV* 
                 agent->radius_m = new_values[7];  // vrel
                 agent->diffusion_rate_m;
                 agent->velocity_ms;
-
+		*/
 		agent->closest_ev_id = ev2_id;
 		agent->closest_ev_distance = closest_ev_distance;
 	}
@@ -877,7 +884,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 	int ev2_id = -1;
 	float ev2_x, ev2_y, ev2_vx, ev2_vy, ev2_mass_ag;
 	float2 distance_vector;
-	float* new_values;
+	float4 new_values;
 
 	xmachine_message_location_ev_initial* message = get_first_location_ev_initial_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
@@ -916,6 +923,11 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 		agent->x_1 = agent->x;
 		agent->y_1 = agent->y;
 
+		agent->x = new_values.x;
+		agent->y = new_values.y;
+		agent->vx = new_values.z;
+		agent->vy = new_values.w;
+		/*
 		agent->x = new_values[0];
 		agent->y = new_values[1];
 		agent->vx = new_values[2];
@@ -925,7 +937,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 		agent->colour = new_values[6];  //L
 		agent->radius_m = new_values[7]; // vrel
                 agent->diffusion_rate_m;
-                agent->velocity_ms;
+                agent->velocity_ms; */
 
 		agent->closest_ev_id = ev2_id;
 		agent->closest_ev_distance = closest_ev_distance;
