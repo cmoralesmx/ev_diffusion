@@ -1207,7 +1207,9 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 		// compute the next interval of secretion
 		if(agent->time_to_next_secretion < 0)
 		{
-			agent->time_to_next_secretion = seconds_before_introducing_new_evs + (rnd<CONTINUOUS>(rand48) * seconds_before_introducing_new_evs);
+			float min_next_secretion = ((0.3 / (0.16 * dt)) * dt) * 2;
+			float tt_next_secretion = seconds_before_introducing_new_evs + (rnd<CONTINUOUS>(rand48) * seconds_before_introducing_new_evs); 
+			agent->time_to_next_secretion = tt_next_secretion < min_next_secretion ? min_next_secretion : tt_next_secretion;
 
 			agent->probability_of_secretion = rnd<CONTINUOUS>(rand48);
 					
@@ -1254,8 +1256,6 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 				y -= agent->unit_normal_y * radius_um;
 				
 				float time_in_initial = ((radius_um * 2.) / (velocity_ums * dt)) * dt;
-				if(agent->time_to_next_secretion < time_in_initial)
-					agent->time_to_next_secretion = time_in_initial;
 				// EV_agent_list, id, x, y z, x_1, y_1, vx, vy, bm_vx, bm_vy, bm_impulse_t_left
 				add_EV_agent(EVs, id, x, y, 0, x - vx * dt, y - vy * dt, vx, vy,
 					// (float)rand_i,(float)rand_i2,volume,
