@@ -697,7 +697,7 @@
                           <lhs>
                             <agentVariable>closest_ciliary_cell_distance</agentVariable>
                           </lhs>
-                          <operator>&gt;</operator>
+                          <operator>&gt;=</operator>
                           <rhs>
                             <agentVariable>closest_secretory_cell_distance</agentVariable>
                           </rhs>
