@@ -124,7 +124,7 @@ __FLAME_GPU_FUNC__ int output_ciliary_cell_location(xmachine_memory_CiliaryCell*
 
 __FLAME_GPU_FUNC__ int output_secretory_cell_location(xmachine_memory_SecretoryCell* agent, xmachine_message_secretory_cell_location_list* location_messages) {
 	agent->probability_of_secretion = 0; // used for debugging purposes only
-	agent->time_to_next_secretion -= dt;
+	agent->time_to_next_secretion_attempt -= dt;
 	add_secretory_cell_location_message(location_messages, agent->id, agent->x, agent->y, 0,
 		agent->p1_x, agent->p1_y, agent->p2_x, agent->p2_y, agent->direction_x, agent->direction_y,
 		agent->direction_x_unit, agent->direction_y_unit, agent->direction_length, 
@@ -1219,11 +1219,11 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 	if(introduce_new_evs > 0)
 	{
 		// compute the next interval of secretion
-		if(agent->time_to_next_secretion < 0)
+		if(agent->time_to_next_secretion_attempt < 0)
 		{
-			float min_next_secretion = ((0.3 / (0.16 * dt)) * dt) * 2;
-			float tt_next_secretion = seconds_before_introducing_new_evs + (rnd<CONTINUOUS>(rand48) * seconds_before_introducing_new_evs); 
-			agent->time_to_next_secretion = tt_next_secretion < min_next_secretion ? min_next_secretion : tt_next_secretion;
+			//float min_next_secretion = ((0.3 / (0.16 * dt)) * dt) * 2;
+			agent->time_to_next_secretion_attempt = seconds_before_introducing_new_evs/2 + (rnd<CONTINUOUS>(rand48) * seconds_before_introducing_new_evs);
+			//agent->time_to_next_secretion = tt_next_secretion < min_next_secretion ? min_next_secretion : tt_next_secretion;
 
 			agent->probability_of_secretion = rnd<CONTINUOUS>(rand48);
 					
@@ -1260,7 +1260,9 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 
 				// choose a random starting point
 				int rand_i2 = (int)(rnd<CONTINUOUS>(rand48) * agent->source_points) - 1;
-				if (rand_i2 < 0) rand_i2++;
+				while(rand_i2 < 0 || rand_i2 == agent->last_source_point_secreting) {
+					rand_i2 = (int)(rnd<CONTINUOUS>(rand48) * agent->source_points) - 1;
+				}
 				int ssp = rand_i2 * xmachine_memory_SecretoryCell_MAX;
 				float x = agent->source_points_xs[ssp];
 				float y = agent->source_points_ys[ssp];

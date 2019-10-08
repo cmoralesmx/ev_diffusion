@@ -154,6 +154,7 @@
       <gpu:variable>
         <type>int</type>
         <name>ev_viability</name>
+        <description>Minimal lifespan for an EV in seconds</description>
         <defaultValue>3600</defaultValue>
       </gpu:variable>
     </gpu:constants>
@@ -249,7 +250,7 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>time_to_next_secretion</name>
+          <name>time_to_next_secretion_attempt</name>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -269,6 +270,11 @@
           <type>float</type>
           <name>source_points_ys</name>
           <arrayLength>11</arrayLength>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>last_source_point_secreting</name>
+          <defaultValue>-1</defaultValue>
         </gpu:variable>
       </memory>
       <functions>
@@ -1590,11 +1596,11 @@
         <name>output_location_ev_initial</name>
       </gpu:layerFunction>
     </layer>
-    <layer>
+    <!--<layer>
       <gpu:layerFunction>
         <name>test_collision_ev_initial_ev_initial</name>
       </gpu:layerFunction>
-    </layer>
+    </layer>-->
 
     <!-- Collisions between default and initial evs (and solve them) -->
     <layer>
