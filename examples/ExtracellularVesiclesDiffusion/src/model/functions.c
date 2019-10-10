@@ -1260,9 +1260,13 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 
 				// choose a random starting point
 				int rand_i2 = (int)(rnd<CONTINUOUS>(rand48) * agent->source_points) - 1;
-				while(rand_i2 < 0 || rand_i2 == agent->last_source_point_secreting) {
-					rand_i2 = (int)(rnd<CONTINUOUS>(rand48) * agent->source_points) - 1;
+				if(rand_i2 < 0 || rand_i2 == agent->last_source_point_secreting) {
+					if (rand_i2 + 1 < agent->source_points)
+						rand_i2++;
+					else
+						rand_i2--;
 				}
+				agent->last_source_point_secreting = rand_i2;
 				int ssp = rand_i2 * xmachine_memory_SecretoryCell_MAX;
 				float x = agent->source_points_xs[ssp];
 				float y = agent->source_points_ys[ssp];
