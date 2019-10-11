@@ -1162,15 +1162,11 @@ __FLAME_GPU_FUNC__ int brownian_movement_2d_v2(xmachine_memory_EV* agent, RNG_ra
 }
 
 __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
-	float u1, u2, r, theta;
+	float u, r, theta;
 	
-	//u1 = rnd<CONTINUOUS>(rand48);
-	u2 = rnd<CONTINUOUS>(rand48);
-	//agent->bm_impulse_t_left = 0; // rnd<CONTINUOUS>(rand48);
-	// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
-	// compute the radius of a circumference
+	u = rnd<CONTINUOUS>(rand48);
 	r = sqrt(agent->vx * agent->vx + agent->vy * agent->vy); // we factor this radius by 0.1 to keep the values within [-1,1]
-	theta = 2 * M_PI * u2; // computes the angle of rotation
+	theta = 2 * M_PI * u; // computes the angle of rotation
 	agent->bm_vx = (r * cos(theta));
 	agent->bm_vy = (r * sin(theta));
 
