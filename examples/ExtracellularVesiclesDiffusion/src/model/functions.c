@@ -318,9 +318,10 @@ __device__  int solve_segment_end_point_collision(xmachine_memory_EV* agent,
 Collision resolution algorithm modified from Physics for Javascript Games, Animation, and Simulation Ch, 11
 */
 __FLAME_GPU_FUNC__ int secretory_cell_collision_resolution(xmachine_memory_EV* agent, 
-	xmachine_message_secretory_cell_collision_list* secretory_cell_collision_messages){
+	xmachine_message_secretory_cell_collision_list* secretory_cell_collision_messages,
+	xmachine_message_secretory_cell_collision_PBM* partition_matrix){
 
-	xmachine_message_secretory_cell_collision* message = get_first_secretory_cell_collision_message(secretory_cell_collision_messages);
+	xmachine_message_secretory_cell_collision* message = get_first_secretory_cell_collision_message(secretory_cell_collision_messages, partition_matrix, agent->x, agent->y, agent->z);
 	
 	while (message){
 		// we verify the ev_id in the message matches this agent's id
@@ -345,7 +346,7 @@ __FLAME_GPU_FUNC__ int secretory_cell_collision_resolution(xmachine_memory_EV* a
 				solve_segment_end_point_collision(agent, message->p2_x, message->p2_y, 602.0);
 			}
 		}
-		message = get_next_secretory_cell_collision_message(message, secretory_cell_collision_messages);
+		message = get_next_secretory_cell_collision_message(message, secretory_cell_collision_messages, partition_matrix);
 	}
 	return 0;
 }
@@ -355,9 +356,10 @@ This function resolves a single collision between an EV and a ciliary cell
 After this, the EV has new values for x, y, vx, and vy, compensated for the collision
 */
 __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* agent, 
-	xmachine_message_ciliary_cell_collision_list* ciliary_cell_collision_messages) {
+	xmachine_message_ciliary_cell_collision_list* ciliary_cell_collision_messages,
+	xmachine_message_ciliary_cell_collision_PBM* partition_matrix) {
 
-	xmachine_message_ciliary_cell_collision* message = get_first_ciliary_cell_collision_message(ciliary_cell_collision_messages);
+	xmachine_message_ciliary_cell_collision* message = get_first_ciliary_cell_collision_message(ciliary_cell_collision_messages, partition_matrix, agent->x, agent->y, agent->z);
 	//float acceleration_x = 0, acceleration_y = 0;
 	while (message) {
 		// we verify the ev_id in the message matches this agent's id
@@ -394,7 +396,7 @@ __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* age
 				solve_segment_end_point_collision(agent, message->p2_x, message->p2_y, 604.0);
 			}
 		}
-		message = get_next_ciliary_cell_collision_message(message, ciliary_cell_collision_messages);
+		message = get_next_ciliary_cell_collision_message(message, ciliary_cell_collision_messages, partition_matrix);
 	}
 	return 0;
 }
@@ -538,9 +540,10 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 		agent->closest_secretory_cell_distance = closest_cell_distance;
 		// write the corresponding collision_message
 		add_secretory_cell_collision_message(secretory_cell_collision_messages, agent->id,
+			agent->x, agent->y, agent->z,
 			agent->closest_secretory_cell_id, agent->closest_secretory_cell_distance,
-			wall_pts.x, wall_pts.y, wall_pts.z, wall_pts.w, wall_direction.x, wall_direction.y,
-			wall_direction.z, wall_direction.w, wall_direction_length,
+			wall_pts.x, wall_pts.y, wall_pts.z, wall_pts.w, 
+			wall_direction.x, wall_direction.y, wall_direction.z, wall_direction.w, wall_direction_length,
 			wall_normal.x, wall_normal.y, wall_unit_normal.x, wall_unit_normal.y, wall_normal.z);
 	}
 	return 0;
@@ -681,7 +684,8 @@ __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xm
 		agent->closest_ciliary_cell_id = closest_cell;
 		agent->closest_ciliary_cell_distance = closest_cell_distance;
 		// write the corresponding collision_message
-		add_ciliary_cell_collision_message(ciliary_cell_collision_messages, agent->id, 
+		add_ciliary_cell_collision_message(ciliary_cell_collision_messages, agent->id,
+			agent->x, agent->y, agent->z,
 			agent->closest_ciliary_cell_id, agent->closest_ciliary_cell_distance,
 			wall_pts.x, wall_pts.y, wall_pts.z, wall_pts.w, wall_direction.x, wall_direction.y,
 			wall_direction.z, wall_direction.w, wall_direction_length,

@@ -1370,6 +1370,18 @@
           <name>ev_id</name>
         </gpu:variable>
         <gpu:variable>
+          <type>float</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>z</name>
+        </gpu:variable>
+        <gpu:variable>
           <type>int</type>
           <name>cell_id</name>
         </gpu:variable>
@@ -1377,7 +1389,6 @@
           <type>float</type>
           <name>distance</name>
         </gpu:variable>
-        
         <gpu:variable>
           <type>float</type>
           <name>p1_x</name>
@@ -1394,7 +1405,6 @@
           <type>float</type>
           <name>p2_y</name>
         </gpu:variable>
-        
         <gpu:variable>
           <type>float</type>
           <name>cell_direction_x</name>
@@ -1437,7 +1447,15 @@
           <name>normal_length</name>
         </gpu:variable>
       </variables>
-      <gpu:partitioningNone/>
+      <gpu:partitioningSpatial>
+        <gpu:radius>1</gpu:radius>
+        <gpu:xmin>0</gpu:xmin>
+        <gpu:xmax>3000</gpu:xmax>
+        <gpu:ymin>0</gpu:ymin>
+        <gpu:ymax>4000</gpu:ymax>
+        <gpu:zmin>0</gpu:zmin>
+        <gpu:zmax>1</gpu:zmax>
+      </gpu:partitioningSpatial>
       <gpu:bufferSize>1048576</gpu:bufferSize>
     </gpu:message>
     <!-- secretory cell collision message -->
@@ -1449,6 +1467,18 @@
           <name>ev_id</name>
         </gpu:variable>
         <gpu:variable>
+          <type>float</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>z</name>
+        </gpu:variable>
+        <gpu:variable>
           <type>int</type>
           <name>cell_id</name>
         </gpu:variable>
@@ -1472,7 +1502,6 @@
           <type>float</type>
           <name>p2_y</name>
         </gpu:variable>
-        
         <gpu:variable>
           <type>float</type>
           <name>cell_direction_x</name>
@@ -1513,9 +1542,16 @@
           <type>float</type>
           <name>normal_length</name>
         </gpu:variable>
-        <!-- for cells ends -->
       </variables>
-      <gpu:partitioningNone/>
+      <gpu:partitioningSpatial>
+        <gpu:radius>1</gpu:radius>
+        <gpu:xmin>0</gpu:xmin>
+        <gpu:xmax>3000</gpu:xmax>
+        <gpu:ymin>0</gpu:ymin>
+        <gpu:ymax>4000</gpu:ymax>
+        <gpu:zmin>0</gpu:zmin>
+        <gpu:zmax>1</gpu:zmax>
+      </gpu:partitioningSpatial>
       <gpu:bufferSize>1048576</gpu:bufferSize>
     </gpu:message>
   </messages>
