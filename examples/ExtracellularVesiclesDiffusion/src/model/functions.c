@@ -1120,44 +1120,16 @@ Due to limitations in FlameGPU, we sample both continuos numbers from the same R
 __FLAME_GPU_FUNC__ int brownian_movement_2d_v1(xmachine_memory_EV* agent, RNG_rand48* rand48) {
 	float u1, u2, r, theta; 
 	
-	if (agent->bm_impulse_t_left <= 0) {
-		u1 = rnd<CONTINUOUS>(rand48);
-		u2 = rnd<CONTINUOUS>(rand48);
-		agent->bm_impulse_t_left = 0;// rnd<CONTINUOUS>(rand48);
-		// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
-		r = sqrt(-2.0 * log(u1)) * agent->velocity_ums * dt; // computes the radius of a circumference smaller than velocity_ums.
-		theta = 2 * M_PI * u2; // computes the angle of rotation
-		agent->bm_vx = r * cos(theta);
-		agent->bm_vy = r * sin(theta);
-		// integrate the effect of brownian motion
-		agent->vx += agent->bm_vx;
-		agent->vy += agent->bm_vy;
-	}
-	else {
-		agent->bm_impulse_t_left -= dt;
-	}
-	return 0;
-}
-
-__FLAME_GPU_FUNC__ int brownian_movement_2d_v2(xmachine_memory_EV* agent, RNG_rand48* rand48) {
-	float u1, u2, r, theta;
-	
-	if (agent->bm_impulse_t_left <= 0) {
-		u1 = rnd<CONTINUOUS>(rand48);
-		u2 = rnd<CONTINUOUS>(rand48);
-		agent->bm_impulse_t_left = 0;
-										// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
-		r = sqrt(-2.0 * log(u1)) * agent->velocity_ums * dt; // computes the radius of a circumference smaller than velocity_ums.
-		theta = 2 * M_PI * u2; // computes the angle of rotation
-		agent->bm_vx = r * cos(theta);
-		agent->bm_vy = r * sin(theta);
-		// integrate the effect of brownian motion
-		agent->vx += agent->bm_vx;
-		agent->vy += agent->bm_vy;
-	}
-	else {
-		agent->bm_impulse_t_left -= dt;
-	}
+	u1 = rnd<CONTINUOUS>(rand48);
+	u2 = rnd<CONTINUOUS>(rand48);
+	// 'velocity_ums' comes form the SD value of the MSD (Mean squared displacement)
+	r = sqrt(-2.0 * log(u1)) * agent->velocity_ums * dt; // computes the radius of a circumference smaller than velocity_ums.
+	theta = 2 * M_PI * u2; // computes the angle of rotation
+	agent->bm_vx = r * cos(theta);
+	agent->bm_vy = r * sin(theta);
+	// integrate the effect of brownian motion
+	agent->vx += agent->bm_vx;
+	agent->vy += agent->bm_vy;
 	return 0;
 }
 
@@ -1165,10 +1137,13 @@ __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand4
 	float u, r, theta;
 	
 	u = rnd<CONTINUOUS>(rand48);
-	r = sqrt(agent->vx * agent->vx + agent->vy * agent->vy); // we factor this radius by 0.1 to keep the values within [-1,1]
-	theta = 2 * M_PI * u; // computes the angle of rotation
+	r = sqrt(agent->vx * agent->vx + agent->vy * agent->vy) * dt;
+	theta = 2 * M_PI * u; // angle of rotation
 	agent->bm_vx = (r * cos(theta));
 	agent->bm_vy = (r * sin(theta));
+	// integrate the effect of brownian motion
+	agent->vx += agent->bm_vx;
+	agent->vy += agent->bm_vy;
 
 	return 0;
 }
