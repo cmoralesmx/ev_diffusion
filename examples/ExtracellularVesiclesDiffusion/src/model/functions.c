@@ -97,12 +97,12 @@ __FLAME_GPU_INIT_FUNC__ void precompute_values() {
  */
 __FLAME_GPU_FUNC__ int output_location_ev_default(xmachine_memory_EV* agent, xmachine_message_location_ev_default_list* location_messages){
 	add_location_ev_default_message(location_messages, agent->id, agent->x, agent->y,
-		agent->z, agent->radius_um, agent->mass_kg, agent->mass_ag, agent->vx, agent->vy);
+		agent->z, agent->radius_um, agent->mass_ag, agent->vx, agent->vy);
     return 0;
 }
 __FLAME_GPU_FUNC__ int output_location_ev_initial(xmachine_memory_EV* agent, xmachine_message_location_ev_initial_list* location_messages) {
 	add_location_ev_initial_message(location_messages, agent->id, agent->x, agent->y,
-		agent->z, agent->radius_um, agent->mass_kg, agent->mass_ag, agent->vx, agent->vy);
+			agent->z, agent->radius_um, agent->mass_ag, agent->vx, agent->vy);
 	return 0;
 }
 
@@ -310,7 +310,6 @@ __device__  int solve_segment_end_point_collision(xmachine_memory_EV* agent,
 	//// final velocity vector after collision
 	agent->vx = -1.0 * normalVelo.x + tangentVelo_x;
 	agent->vy = -1.0 * normalVelo.y + tangentVelo_y;
-	agent->velocity_ms = caller;
 	return 0;
 }
 
@@ -696,6 +695,7 @@ __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xm
 
 struct PostCollisionData {
 	float2 correctedLocation;
+	float2 correctionApplied;
 	float2 correctedVelocity;
 	float correctionFactor;
 	float overlap;
@@ -721,6 +721,7 @@ __device__ struct PostCollisionData solve_collision_ev_default_ev_default(float2
 	pcd.vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
 	pcd.correctionFactor = pcd.overlap / pcd.vrel;
 	pcd.correctedLocation = add_scaled(ev1_loc, normal_velocity1, -pcd.correctionFactor);
+	pcd.correctionApplied = float2_scale(normal_velocity1, -pcd.correctionFactor);
 	
 	// normal velocity components after the impact
 	float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);
@@ -735,6 +736,7 @@ __device__ struct PostCollisionData solve_collision_ev_default_ev_default(float2
 
 struct PostCollisionDataInitial {
 	float2 correctedPosition;
+	float2 correctionApplied;
 	float2 correctedVelocity;
 	float correctionFactor;
 	float overlap;
@@ -756,8 +758,8 @@ __device__ struct PostCollisionDataInitial solve_collision_ev_default_ev_initial
 	pcdi.overlap = min_distance - dist_length;
 	float2 normal_velo_subtracted = float2_sub(normal_velocity1, normal_velocity2);
 	pcdi.vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
-    pcdi.vnorm = vlength(ev1_velo.x, ev1_velo.y);
-    float dp = ev1_velo.x*ev2_velo.x + ev1_velo.y*ev2_velo.y;
+	pcdi.vnorm = vlength(ev1_velo.x, ev1_velo.y);
+	float dp = ev1_velo.x*ev2_velo.x + ev1_velo.y*ev2_velo.y;
 	pcdi.auxiliaryFactors.x = pcdi.overlap / pcdi.vrel;
 	pcdi.auxiliaryFactors.y = pcdi.auxiliaryFactors.x > 100 ? pcdi.auxiliaryFactors.x /10 : pcdi.auxiliaryFactors.x;
 	pcdi.correctionFactor = (pcdi.overlap * 4) / pcdi.vnorm;
@@ -766,7 +768,8 @@ __device__ struct PostCollisionDataInitial solve_collision_ev_default_ev_initial
 		pcdi.correctionFactor = -pcdi.correctionFactor;
 	}
 	//float2 new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, pcdi.correctionFactors.y);
-    pcdi.correctedPosition = add_scaled(ev1_loc, normal_velocity1, pcdi.correctionFactor);
+	pcdi.correctedPosition = add_scaled(ev1_loc, normal_velocity1, pcdi.correctionFactor);
+	pcdi.correctionApplied = float2_scale(normal_velocity1, -pcdi.correctionFactor);
 
 	// normal velocity components after the impact
 	float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);
@@ -851,7 +854,6 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_default(xmachine_memory_EV* 
 					ev2_vx = message->vx;
 					ev2_vy = message->vy;
 					ev2_mass_ag = message->mass_ag;
-					//ev2_radius_um = message->radius_um;
 				}
 			}
 		}
@@ -870,14 +872,12 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_default(xmachine_memory_EV* 
 		agent->y = pcd.correctedLocation.y;
 		agent->vx = pcd.correctedVelocity.x;
 		agent->vy = pcd.correctedVelocity.y;
-		agent->bm_impulse_t_left = pcd.correctionFactor; // fac1
-		agent->mass_kg = pcd.overlap;
-		agent->colour = pcd.vrel;  // L
-        /*
-		agent->radius_m = ;
-        agent->diffusion_rate_m;
-        agent->velocity_ms;
-		*/
+		agent->colInfCorrectionFactor = pcd.correctionFactor; // fac1
+		agent->colInfOverlap = pcd.overlap;
+		agent->colInfVnorm = pcd.vrel;  // L
+		agent->colInfCorrectionAppliedX = pcd.correctionApplied.x;
+		agent->colInfCorrectionAppliedY = pcd.correctionApplied.y;
+
 		agent->closest_ev_id = ev2_id;
 		agent->closest_ev_distance = closest_ev_distance;
 	}
@@ -938,12 +938,14 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 		agent->y = pcdi.correctedPosition.y;
 		agent->vx = pcdi.correctedVelocity.x;
 		agent->vy = pcdi.correctedVelocity.y;
-		agent->bm_impulse_t_left = pcdi.correctionFactor;
-		agent->mass_kg = pcdi.overlap;
-		agent->colour = pcdi.vnorm;
-		agent->radius_m = pcdi.vrel; // auxiliary
-		agent->diffusion_rate_m = pcdi.auxiliaryFactors.x; // factor 1
-        agent->velocity_ms = pcdi.auxiliaryFactors.y; // factor 2
+		agent->colInfCorrectionFactor = pcdi.correctionFactor;
+		agent->colInfOverlap = pcdi.overlap;
+		agent->colInfVnorm = pcdi.vnorm;
+		agent->colInfVrel = pcdi.vrel; // auxiliary
+		agent->colInfAuxFactor1 = pcdi.auxiliaryFactors.x; // factor 1
+		agent->colInfAuxFactor2 = pcdi.auxiliaryFactors.y; // factor 2
+		agent->colInfCorrectionAppliedX = pcdi.correctionApplied.x;
+		agent->colInfCorrectionAppliedY = pcdi.correctionApplied.y;
 
 		agent->closest_ev_id = ev2_id;
 		agent->closest_ev_distance = closest_ev_distance;
@@ -1085,7 +1087,6 @@ __FLAME_GPU_FUNC__ int reset_state(xmachine_memory_EV* agent) {
 }
 
 __FLAME_GPU_FUNC__ int initial_to_default(xmachine_memory_EV* agent) {
-	//agent->colour = agent->age;
 	return 0;
 }
 
@@ -1216,7 +1217,6 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 				//float volume = const_pi_4div3 * radius_nm_3;
 				//float mass_g = const_mass_per_volume_unit * volume;
 				float mass_g = const_mass_p_vol_u_x_4div3_pi * radius_nm * radius_nm * radius_nm;
-				float mass_kg = mass_g * 1e3;
 				float mass_ag = mass_g / 1e-18;
 
 				// to convert:
@@ -1227,7 +1227,6 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 
 				// compute the diffusion-rate dependant Mean Square Displacement
 				float velocity_ums = sqrt(2 * dof * diffusion_rate_ums * dt);
-				float velocity_ms = sqrt(2 * dof * diffusion_rate_ms * dt);
 
 				// decompose velocity
 				float vx = velocity_ums * agent->unit_normal_x;
@@ -1251,16 +1250,13 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* agent, xmachine
 				y -= agent->unit_normal_y * radius_um;
 				
 				float time_in_initial = ((radius_um * 2.) / (velocity_ums * dt)) * dt;
-				// EV_agent_list, id, x, y z, x_1, y_1, vx, vy, bm_vx, bm_vy, bm_impulse_t_left
-				add_EV_agent(EVs, id, x, y, 0, x - vx * dt, y - vy * dt, vx, vy,
-					// (float)rand_i,(float)rand_i2,volume,
-					0, 0, 0,
-					// mass_kg, mass_ag, colour, radius_um, radius_m, diffusion_rate_m,
-					mass_kg, mass_ag, 0, radius_um, radius_m, diffusion_rate_ms,
-					// diffusion_rate_um, diff_rate_um_x_twice_dof
-					diffusion_rate_ums, diffusion_rate_ums * 2 * dof,
-					// closest: ev_id, distance, secretory, distance, ciliary, distance, age, velocity_um, velocity_m
-					-1, 100, -1, 100, -1, 100, 0, time_in_initial, velocity_ums, velocity_ms);
+				// EV_agent_list, id, x, y z, x_1, y_1, vx, vy, bm_vx, bm_vy,
+				add_EV_agent(EVs, id, x, y, 0, x - vx * dt, y - vy * dt, vx, vy, 0, 0,
+					// mass_ag, radius_um, diffusion_rate_um, diff_rate_um_x_twice_dof
+					mass_ag, radius_um, diffusion_rate_ums, diffusion_rate_ums * 2 * dof,
+					// closest: ev_id, dist, secretory, dist, ciliary, diste, age, velocity_um, velocity_m
+					-1, 100, -1, 100, -1, 100, 0, time_in_initial, velocity_ums,
+					0,0,0,0,0,0,0,0);
 			}
 		}
 	}

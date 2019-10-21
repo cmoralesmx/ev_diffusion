@@ -488,7 +488,6 @@
           <name>vy</name>
           <description>The component on Y of velocity_um</description>
         </gpu:variable>
-
         <gpu:variable>
           <type>float</type>
           <name>bm_vx</name>
@@ -503,36 +502,12 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>bm_impulse_t_left</name>
-          <description></description>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        
-        <gpu:variable>
-          <type>float</type>
-          <name>mass_kg</name>
-          <description>Mass of the vesicle in KG</description>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
           <name>mass_ag</name>
           <description>Mass of the vesicle in attograms</description>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>colour</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
           <name>radius_um</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>radius_m</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>diffusion_rate_m</name>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -589,8 +564,43 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>velocity_ms</name>
-          <description>Velocity in um/s - mean diffusion distance obtained from MSD</description>
+          <name>colInfVnorm</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>colInfVrel</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>colInfOverlap</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>colInfCorrectionFactor</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>colInfAuxFactor1</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>colInfAuxFactor2</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>colInfCorrectionAppliedX</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>colInfCorrectionAppliedY</name>
+          <defaultValue>0</defaultValue>
         </gpu:variable>
       </memory>
       <functions>
@@ -1099,10 +1109,6 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>mass_kg</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
           <name>mass_ag</name>
           <description>Mass of the vesicle in attograms</description>
         </gpu:variable>
@@ -1149,10 +1155,6 @@
         <gpu:variable>
           <type>float</type>
           <name>radius_um</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>mass_kg</name>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -1627,12 +1629,12 @@
     </layer>
 
     <!-- Collisions between initial evs (and solve them) -->
-    <layer>
+    <!--<layer>
       <gpu:layerFunction>
         <name>output_location_ev_initial</name>
       </gpu:layerFunction>
     </layer>
-    <!--<layer>
+    <layer>
       <gpu:layerFunction>
         <name>test_collision_ev_initial_ev_initial</name>
       </gpu:layerFunction>
@@ -1642,9 +1644,6 @@
     <layer>
       <gpu:layerFunction>
         <name>output_location_ev_initial</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <name>output_location_ev_default</name>
       </gpu:layerFunction>
     </layer>
     <layer>
