@@ -400,47 +400,93 @@ __device__ int drag_force(xmachine_memory_EV* agent) {
 // solves direct collisions between EV and segments
 __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_dir_x, 
 	float cell_dir_y, float cell_direction_length, float perp_dist_x, float perp_dist_y,
-	float cell_unit_normal_x, float cell_unit_normal_y) {
-	// 1. angle between velocity and wall 
-	float angle = acosf(dotprod(agent->vx, agent->vy, cell_dir_x, cell_dir_y) 
-		/ (vlength(agent->vx, agent->vy) * cell_direction_length));
+	float cell_unit_normal_x, float cell_unit_normal_y, float caller_id) {
+		agent->debugDistDpNormal = 999999;
+	// We compute the angle between velocity and wall direction based on
+	// the cosine of the angle betwen two vectors which is the quotient of the
+	// dot product of the vectors and the product of their magnitudes
+	// 1. angle between velocity and wall direction
+	float dp = dotprod(agent->vx, agent->vy, cell_dir_x, cell_dir_y);
+	float lengths_product = (vlength(agent->vx, agent->vy) * cell_direction_length);
+	checkDivZero(agent, lengths_product, caller_id); // 3000, 4000
+	float quotient = dp / lengths_product;
+	agent->debugDotProduct = dp;
+	agent->debugLengthsProduct = lengths_product;
+
+	// Due to rounding errors, the quotient can have values out of the
+	// expected range for acosf() which produces NaN values
+	if(quotient > 1.0) { quotient = 1.0; }
+	else if (quotient < -1.0) { quotient = -1.0; }
+	float angle = acosf(quotient);
+	agent->debugAngle = angle;
+
 	// 2. reposition object
 	float normal_x = cell_unit_normal_x;
 	float normal_y = cell_unit_normal_y;
 
-	// 3. compute deltaS
+	// 3. start by computing deltaS
 	float dist_dp_normal = dotprod(perp_dist_x, perp_dist_y, normal_x, normal_y);
-	float deltaS = (agent->radius_um + dist_dp_normal) / sin(angle);
+	//agent->debugInternPerpDistX = perp_dist_x;
+	//agent->debugInternPerpDistY = perp_dist_y;
+	agent->debugDistDpNormal = dist_dp_normal;
 
-	// 4. estimate what was the displacement = velocity parallel to delta
+	float sin_angle = sin(angle);
+	agent->debugSinAngle = sin_angle;
+
+	checkValueNanInf(agent, dist_dp_normal, caller_id + 5);
+	checkValueNanInf(agent, sin_angle, caller_id + 10); // 3110:secretory, 4110:ciliary
+	float deltaS = 0;
+
+	// deltaS matches the value of 'closest_secretory_cell_distance'
+	if (abs(sin_angle) < 1e-6) {
+		// special case, orthogonal collisions produce angle=0, sin_angle=0
+		// the distance to compensate affects only a single axis
+		deltaS = agent->radius_um + dist_dp_normal;
+	} else {
+		deltaS = (agent->radius_um + dist_dp_normal) / sin_angle;
+		checkDivZero(agent, sin_angle, caller_id + 15);
+	}
+
+	agent->debugDeltaS = deltaS;
+	checkValueNanInf(agent, deltaS, caller_id + 20); // 3120:secretory, 4120:ciliary
+
+	// 4. estimate the displacement vector needed for the correction
 	float2 displ = parallel(agent->vx, agent->vy, deltaS);
+	checkValueNanInf(agent, displ, caller_id + 25);
 
 	// 5. update position by subtracting the displacement
 	agent->x -= displ.x;
 	agent->y -= displ.y;
-
-	// velocity correction factor
-	//var vcor = 1-acc.dotProduct(displ)/obj.velo2D.lengthSquared();
-	//float numerator = dotprod(acceleration_x, acceleration_y, displ_x, displ_y);
-	//float sqr_vel = (agent->vx * agent->vx + agent->vy*agent->vy);
-	//float vfrac = numerator / sqr_vel;
-	//float vcor = 1 - vfrac;
-
-	//printf("displx:%f disply:%f numerator:%f sqr_vel:%f vfrac:%f vcor:%f\n", displ_x, displ_y, numerator, sqr_vel, vfrac, vcor);
-	// corrected velocity vector just before impact 
-	// var Velo = obj.velo2D.multiply(vcor)
-	//float new_velocity_x = agent->vx;// *vcor;
-	//float new_velocity_y = agent->vy;// *vcor;
+	agent->debugDisplX = displ.x;
+	agent->debugDisplY = displ.y;
+	checkNanInfLocation(agent, caller_id + 30); // 3130:secretory, 4130:ciliary
 
 	// 6. decompose the velocity
 	// velocity vector component perpendicular to wall just before impact
 	float velocityProjection = projection(agent->vx, agent->vy, perp_dist_x, perp_dist_y);
+	checkValueNanInf(agent, velocityProjection, caller_id + 35);
+
+	checkValueNanInf(agent, perp_dist_x, caller_id + 40);
+	checkValueNanInf(agent, perp_dist_y, caller_id + 45);
 	float2 normalVelocity = parallel(perp_dist_x, perp_dist_y, velocityProjection);
+	agent->debugNormalVelX = normalVelocity.x;
+	agent->debugNormalVelY = normalVelocity.y;
+	checkValueNanInf(agent, normalVelocity, caller_id + 50);
+
+	agent->debugVelocityProjection = velocityProjection;
+
+	checkNanInfVelocity(agent, caller_id + 55);
 
 	// velocity vector component parallel to wall; unchanged by impact
 	float tangentVelocity_x = agent->vx - normalVelocity.x;
 	float tangentVelocity_y = agent->vy - normalVelocity.y;
+	checkValueNanInf(agent, tangentVelocity_x, caller_id + 60);
+	checkValueNanInf(agent, tangentVelocity_y, caller_id + 65);
+	agent->debugTangVelX = tangentVelocity_x;
+	agent->debugTangVelY = tangentVelocity_y;
 
+	//float prev_vx = agent->vx;
+	//float prev_vy = agent->vy;
 	// velocity vector component perpendicular to wall just after impact
 	float new_vx = tangentVelocity_x + (-normalVelocity.x);
 	float new_vy = tangentVelocity_y + (-normalVelocity.y);
@@ -930,8 +976,12 @@ __device__ float4 solve_collision_ev_initial_ev_any(float2 ev1_loc, float2 ev1_v
 	float L = min_distance - dist_length;
 	float2 normal_velo_subtracted = float2_sub(normal_velocity1, normal_velocity2);
 	float vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
-	//float2 new_ev1_loc = add_scaled(make_float2(0, 0), normal_velocity1, -L / vrel);
 	float dp = float2_dot(normal_velocity1, normal_velocity2);
+	// TODO: make sure vrel is never 0
+	if(abs(vrel) < 1e-6){
+		vrel *= 2.0f;
+
+	}
 	float2 new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, -L / vrel);
 	return make_float4(new_ev1_loc.x, new_ev1_loc.y, ev1_velo.x, ev1_velo.y);
 }
