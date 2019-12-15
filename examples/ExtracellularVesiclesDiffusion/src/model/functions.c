@@ -1309,6 +1309,7 @@ __FLAME_GPU_FUNC__ int reset_state_initial(xmachine_memory_EV* agent) {
 }
 
 __FLAME_GPU_FUNC__ int initial_to_default(xmachine_memory_EV* agent) {
+	agent->apoptosis_timer = 0;
 	return 0;
 }
 
@@ -1371,7 +1372,7 @@ __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand4
 	EVs are subject to an appoptotic attempt per second during their lifespan.
 	The apoptosis_threshold reflects the probability of the EV dying at a given time
 */
-__FLAME_GPU_FUNC__ int ev_apoptosis(xmachine_memory_EV* agent, RNG_rand48* rand48){
+__FLAME_GPU_FUNC__ int ev_default_apoptosis(xmachine_memory_EV* agent, RNG_rand48* rand48){
 	
 	if(agent->apoptosis_timer > apoptosis_frequency){
 		agent->apoptosis_timer = 0;
@@ -1380,6 +1381,19 @@ __FLAME_GPU_FUNC__ int ev_apoptosis(xmachine_memory_EV* agent, RNG_rand48* rand4
 		}
 	} else {
 		agent->apoptosis_timer += dt;
+	}
+	return 0;
+}
+
+/*
+	EVs in initial state have the 'time_in_initial_state' extended when colliding with
+	an EV in default state. However, very long extensions can lead to undefined behaviour.
+	To prevent this, the max extension allowed is 2x time in initial state.
+	Extensions longer than this value lead to apoptosis.
+*/
+__FLAME_GPU_FUNC__ int ev_initial_apoptosis(xmachine_memory_EV* agent){
+	if(agent->time_in_initial_state > agent->apoptosis_timer){
+		return 1;
 	}
 	return 0;
 }
@@ -1524,8 +1538,8 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 			add_EV_agent(EVs, id, x, y, secretoryCell->id, x - vx * dt, y - vy * dt, vx, vy, 0, 0,
 				// mass_ag, radius_um, diffusion_rate_um, diff_rate_um_x_twice_dof
 				mass_ag, radius_um, diffusion_rate_ums, dof_2_diff_rate,
-				// closest: ev_id, dist, secretory, dist, ciliary, dist, age, time_in_initial_state, velocity_um
-				-1, 100, -1, 100, -1, 100, 0, 0, time_in_initial, velocity_ums,
+				// closest: ev_id, dist, secretory, dist, ciliary, dist, age, apoptosis timer, time_in_initial_state, velocity_um
+				-1, 100, -1, 100, -1, 100, 0, time_in_initial * 2, time_in_initial, velocity_ums,
 				// colInfVnorm - colInfSeparation_x_1k
 				0, 0, 0, 0, 0, 0, 0, 0, -1,
 				// debug

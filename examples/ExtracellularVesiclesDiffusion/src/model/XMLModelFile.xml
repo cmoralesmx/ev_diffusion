@@ -1257,7 +1257,7 @@
 	        <gpu:RNG>false</gpu:RNG>
         </gpu:function>
         <gpu:function>
-          <name>ev_apoptosis</name>
+          <name>ev_default_apoptosis</name>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <gpu:globalCondition>
@@ -1273,6 +1273,26 @@
           </gpu:globalCondition>
           <gpu:reallocate>true</gpu:reallocate>
 	        <gpu:RNG>true</gpu:RNG>
+        </gpu:function>
+        <gpu:function>
+          <name>ev_initial_apoptosis</name>
+          <currentState>initial</currentState>
+          <nextState>initial</nextState>
+          <!--
+          <gpu:globalCondition>
+            <lhs>
+              <value>apoptosis</value>
+            </lhs>
+            <operator>&gt;</operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          -->
+          <gpu:reallocate>true</gpu:reallocate>
+	        <gpu:RNG>false</gpu:RNG>
         </gpu:function>
       </functions>
       
@@ -1774,7 +1794,10 @@
   <layers>
     <layer>
       <gpu:layerFunction>
-        <name>ev_apoptosis</name>
+        <name>ev_default_apoptosis</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>ev_initial_apoptosis</name>
       </gpu:layerFunction>
     </layer>
     <!-- Vesicles involved in a collision, reset state -->
