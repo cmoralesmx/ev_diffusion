@@ -1373,7 +1373,7 @@ __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand4
 */
 __FLAME_GPU_FUNC__ int ev_apoptosis(xmachine_memory_EV* agent, RNG_rand48* rand48){
 	
-	if(agent->apoptosis_timer > 1.0f){
+	if(agent->apoptosis_timer > apoptosis_frequency){
 		agent->apoptosis_timer = 0;
 		if(rnd<CONTINUOUS>(rand48) < apoptosis_threshold){
 			return 1;

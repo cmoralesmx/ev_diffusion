@@ -160,6 +160,11 @@
         18:1.54320987654e-05, 24: 1.15740740741e-05. Default: 4 hrs</description>
         <defaultValue>6.94e-5</defaultValue>
       </gpu:variable>
+      <gpu:variable>
+        <type>float</type>
+        <name>apoptosis_frequency</name>
+        <defaultValue>1.0</defaultValue>
+      </gpu:variable>
 
       <!-- ev_secretion -->
       <gpu:variable>
