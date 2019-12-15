@@ -16,7 +16,7 @@
       <gpu:variable>
         <type>float</type>
         <name>const_Temperature_K</name>
-        <description>Temperature (Kelvins) (20-25C) + 237.15</description>
+        <description>Temperature (Kelvins) 20c = 293.15</description>
         <defaultValue>293.15f</defaultValue>
       </gpu:variable>
       <!-- const_Boltzmann_x_Temp_K -->
@@ -31,14 +31,17 @@
         <type>float</type>
         <name>const_water_dynamic_viscosity_pas</name>
         <description>
-          At 20C, source http://www.viscopedia.com/viscosity-tables/substances/water/
+          The dynamic (or absolute) viscosity of water @20C
+          Source http://www.viscopedia.com/viscosity-tables/substances/water/
           Value used to compute the diffusion coefficient of new EVs
-          In Pascal-seconds
+          In Pascal-seconds, equiv to 1.0005 mPa*s
+          Also, from:
+          https://www.engineeringtoolbox.com/viscosity-converter-d_413.html
+          Water at 68.4oF (20.2oC) has an absolute viscosity of one - 1 - centiPoise
         </description>
         <defaultValue>0.0010016f</defaultValue>
       </gpu:variable>
       <!-- const_water_kinematic_viscosity -->
-      
       <gpu:variable>
         <type>float</type>
         <name>const_water_kinematic_viscosity_kg_ums</name>
@@ -46,9 +49,25 @@
           A measure of inherent resistance to flow when no external force, except gravity, is acting on the fluid.
           Value at 20C, source http://www.viscopedia.com/viscosity-tables/substances/water/
           Used to compute the drag force acting on the EVs at collision time.
-          In Kg/um.s: 1003, In kg/m.s: 0.001003f
+          @20c = 1.0034 mm^2/s
+          0.00102 poise or 1.002 mPa.s
+
+    1 St = 100 cSt
+    1 cSt (centiStoke) = 10^-6 m^2/s = 1 mm^2/s
+    1 m^2/s = 106 centiStokes
+
+    It is calculated by dividing the dynamic viscosity by density
+    https://www.engineeringclicks.com/viscosity-of-water/
+
+    https://www.thermexcel.com/english/tables/eau_atm.htm
+
+    Density of water in 998.2 kg/m^3
+    Dynamic viscosity 0.001003 kg/m.s
+
+    The SI unit of ν is m2/s. The SI unit of ρ is kg/m^3. ρ-rho
+
         </description>
-        <defaultValue>1003</defaultValue>
+        <defaultValue>0.001003</defaultValue>
       </gpu:variable>
       <!-- const_6_pi_dynamic_viscosity -->
       <gpu:variable>
@@ -135,8 +154,11 @@
       <gpu:variable>
         <type>float</type>
         <name>apoptosis_threshold</name>
-        <description>Probavility threshold</description>
-        <defaultValue>0.995</defaultValue>
+        <description>Probability of dying at any given second within N hours
+        1:0.00027, 2:0.000138888888889, 3:9.25925925926e-05, 4:6.94444444444e-05, 5:5.55555555556e-05
+        6:4.62962962963e-05, 8:3.472e-5, 10:2.77777777778e-05, 12:2.3148e-5,
+        18:1.54320987654e-05, 24: 1.15740740741e-05. Default: 4 hrs</description>
+        <defaultValue>6.94e-5</defaultValue>
       </gpu:variable>
 
       <!-- ev_secretion -->
@@ -573,6 +595,11 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
+          <name>apoptosis_timer</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
           <name>time_in_initial_state</name>
           <defaultValue>0</defaultValue>
         </gpu:variable>
@@ -739,16 +766,6 @@
           <name>debugTangVelY</name>
           <defaultValue>0</defaultValue>
         </gpu:variable>
-        <!-- <gpu:variable>
-          <type>float</type>
-          <name>debugInternPerpDistX</name>
-          <defaultValue>1000</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugInternPerpDistY</name>
-          <defaultValue>1001</defaultValue>
-        </gpu:variable> -->
         <gpu:variable>
           <type>float</type>
           <name>debugVelocityProjection</name>
@@ -1049,6 +1066,30 @@
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
+        <gpu:function>
+          <name>test_collision_ev_initial_ev_default</name>
+          <description>Checks for possible collisions with other EVs. EVs in initial state colliding with another EV conserve the same position from the previous iteration</description>
+          <currentState>initial</currentState>
+          <nextState>initial</nextState>
+          <inputs>
+            <gpu:input>
+              <messageName>location_ev_default</messageName>
+            </gpu:input>
+          </inputs>
+          <gpu:globalCondition>
+            <lhs>
+              <value>ev_collisions</value>
+            </lhs>
+            <operator>&gt;</operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
         <!-- test_collision_ev_default_ev_default -->
         <gpu:function>
           <name>test_collision_ev_default_ev_default</name>
@@ -1117,6 +1158,12 @@
           <nextState>default</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
+        <gpu:function>
+          <name>reset_state_initial</name>
+          <currentState>initial</currentState>
+          <nextState>initial</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
         <!-- initial to default -->
         <gpu:function>
           <name>initial_to_default</name>
@@ -1174,11 +1221,29 @@
           <nextState>default</nextState>
           <gpu:globalCondition>
             <lhs>
-              <value>drag</value>
+              <condition><lhs><value>drag</value></lhs><operator>&gt;</operator><rhs><value>0</value></rhs></condition>
             </lhs>
-            <operator>&gt;</operator>
+            <operator>&amp;&amp;</operator>
             <rhs>
-              <value>0</value>
+              <condition><lhs><value>brownian_motion_2d</value></lhs><operator>&lt;</operator><rhs><value>1</value></rhs></condition>
+            </rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          <gpu:reallocate>false</gpu:reallocate>
+	        <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+        <gpu:function>
+          <name>drag_force_bm</name>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <gpu:globalCondition>
+            <lhs>
+              <condition><lhs><value>drag</value></lhs><operator>&gt;</operator><rhs><value>0</value></rhs></condition>
+            </lhs>
+            <operator>&amp;&amp;</operator>
+            <rhs>
+              <condition><lhs><value>brownian_motion_2d</value></lhs><operator>&gt;</operator><rhs><value>0</value></rhs></condition>
             </rhs>
             <gpu:maxItterations>1000000000</gpu:maxItterations>
             <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
@@ -1713,6 +1778,9 @@
         <name>reset_state</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
+        <name>reset_state_initial</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
         <name>initial_to_default</name>
       </gpu:layerFunction>
     </layer>
@@ -1725,7 +1793,10 @@
     </layer>
     <layer>
       <gpu:layerFunction>
-        <name>drag_force</name> <!-- ID 1500 -->
+        <name>drag_force</name> <!-- ID 1300 -->
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>drag_force_bm</name> <!-- ID 1600 -->
       </gpu:layerFunction>
     </layer>
     <layer>
@@ -1776,12 +1847,18 @@
     <!-- Collisions between default and initial evs (and solve them) -->
     <layer>
       <gpu:layerFunction>
+        <name>output_location_ev_default</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
         <name>output_location_ev_initial</name>
       </gpu:layerFunction>
     </layer>
     <layer>
       <gpu:layerFunction>
         <name>test_collision_ev_default_ev_initial</name> <!-- ID 5000 -->
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>test_collision_ev_initial_ev_default</name> <!-- ID 5500 -->
       </gpu:layerFunction>
     </layer>
   
