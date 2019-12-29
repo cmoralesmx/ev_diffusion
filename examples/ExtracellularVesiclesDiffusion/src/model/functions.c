@@ -1031,7 +1031,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_default(xmachine_memory_EV* 
 	float radii = 0.0, radius_to_radius;
 	float max_overlap = 0, overlap;
 
-	int ev2_id = -1;
+	unsigned int ev2_id = 0;
 	float ev2_x, ev2_y, ev2_vx, ev2_vy, ev2_mass_ag;
 	float2 distance_vector;
 	//float4 new_values;
@@ -1050,7 +1050,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_default(xmachine_memory_EV* 
 			if (distance < radii){
 				overlap = radii - distance;
 				// the closer both EV locations are, the larger the overlap is
-				if (ev2_id == -1 || overlap > max_overlap){
+				if (ev2_id == 0 || overlap > max_overlap){
 					ev2_id = message->id;
 					closest_ev_distance = distance;
 					radius_to_radius = radii;
@@ -1066,7 +1066,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_default(xmachine_memory_EV* 
 		}
 		message = get_next_location_ev_default_message(message, location_messages, partition_matrix);
 	}
-	if (ev2_id != -1) {
+	if (ev2_id > 0) {
 		pcd = solve_collision_ev_default_ev_default(
 			make_float2(agent->x, agent->y), make_float2(agent->vx, agent->vy), agent->mass_ag,
 			make_float2(ev2_x, ev2_y), make_float2(ev2_vx, ev2_vy), ev2_mass_ag,
@@ -1109,7 +1109,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 	float radii = 0.0, radius_to_radius;
 	float max_overlap = 0, overlap;
 
-	int ev2_id = -1;
+	unsigned int ev2_id = 0;
 	float ev2_x, ev2_y, ev2_vx, ev2_vy, ev2_mass_ag;
 	float2 distance_vector;
 	struct PostCollisionDataInitial pcdi;
@@ -1125,7 +1125,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 
 			if (distance < radii){
 				overlap = radii - distance;
-				if (ev2_id == -1 || overlap > max_overlap){
+				if (ev2_id == 0 || overlap > max_overlap){
 					ev2_id = message->id;
 					closest_ev_distance = distance;
 					radius_to_radius = radii;
@@ -1142,7 +1142,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 		}
 		message = get_next_location_ev_initial_message(message, location_messages, partition_matrix);
 	}
-	if (ev2_id != -1) {
+	if (ev2_id > 0) {
 		pcdi = solve_collision_ev_default_ev_initial(
 			make_float2(agent->x, agent->y), make_float2(agent->vx, agent->vy), agent->mass_ag,
 			make_float2(ev2_x, ev2_y), make_float2(ev2_vx, ev2_vy), ev2_mass_ag,
@@ -1189,7 +1189,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_initial_ev_default(xmachine_memory_EV* 
 	float radii = 0.0;
 	float max_overlap = 0, overlap;
 
-	int ev2_id = -1;
+	unsigned int ev2_id = 0;
 
 	xmachine_message_location_ev_default* message = get_first_location_ev_default_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
@@ -1201,7 +1201,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_initial_ev_default(xmachine_memory_EV* 
 
 			if (distance < radii){
 				overlap = radii - distance;
-				if (ev2_id == -1 || overlap > max_overlap){
+				if (ev2_id == 0 || overlap > max_overlap){
 					ev2_id = message->id;
 					closest_ev_distance = distance;
 					max_overlap = overlap;
@@ -1210,7 +1210,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_initial_ev_default(xmachine_memory_EV* 
 		}
 		message = get_next_location_ev_default_message(message, location_messages, partition_matrix);
 	}
-	if (ev2_id != -1) {
+	if (ev2_id > 0) {
 		// the EV in initial position maintains the same location from the previous iteration
 		agent->x = agent->x_1;
 		agent->y = agent->y_1;
@@ -1238,7 +1238,7 @@ __FLAME_GPU_FUNC__ int reset_state(xmachine_memory_EV* agent) {
 	agent->closest_ciliary_cell_distance = 100;
 	agent->closest_secretory_cell_id = -1;
 	agent->closest_secretory_cell_distance = 100;
-	agent->closest_ev_id = -1;
+	agent->closest_ev_id = 0;
 	agent->closest_ev_distance = 100;
 
 	// debugging values
@@ -1295,7 +1295,7 @@ __FLAME_GPU_FUNC__ int reset_state(xmachine_memory_EV* agent) {
 }
 
 __FLAME_GPU_FUNC__ int reset_state_initial(xmachine_memory_EV* agent) {
-	agent->closest_ev_id = -1;
+	agent->closest_ev_id = 0;
 	agent->closest_ev_distance = 100;
 
 	// debugging values
@@ -1521,7 +1521,9 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 			int ssp = rand_i2 * xmachine_memory_SecretoryCell_MAX;
 			float x = secretoryCell->source_points_xs[ssp];
 			float y = secretoryCell->source_points_ys[ssp];
-			unsigned int id = generate_EV_id();
+			// last secreted ev counter * 1e6 + agent->id;
+			secretoryCell->last_ev_id++;
+			unsigned int id = secretoryCell->last_ev_id * 1e6 + ((unsigned) secretoryCell->id);
 			// displace the startgint coordinates backwards by the diameter of the EV
 			x -= secretoryCell->unit_normal_x * radius_um;
 			y -= secretoryCell->unit_normal_y * radius_um;
@@ -1539,7 +1541,7 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 				// mass_ag, radius_um, diffusion_rate_um, diff_rate_um_x_twice_dof
 				mass_ag, radius_um, diffusion_rate_ums, dof_2_diff_rate,
 				// closest: ev_id, dist, secretory, dist, ciliary, dist, age, apoptosis timer, time_in_initial_state, velocity_um
-				-1, 100, -1, 100, -1, 100, 0, time_in_initial * 2, time_in_initial, velocity_ums,
+				0, 100, -1, 100, -1, 100, 0, time_in_initial * 2, time_in_initial, velocity_ums,
 				// colInfVnorm - colInfSeparation_x_1k
 				0, 0, 0, 0, 0, 0, 0, 0, -1,
 				// debug

@@ -239,7 +239,7 @@
       <name>SecretoryCell</name>
       <memory>
         <gpu:variable>
-          <type>unsigned int</type>
+          <type>int</type>
           <name>id</name>
         </gpu:variable>
         <gpu:variable>
@@ -337,6 +337,11 @@
           <type>int</type>
           <name>last_source_point_secreting</name>
           <defaultValue>-1</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>last_ev_id</name>
+          <defaultValue>0</defaultValue>
         </gpu:variable>
       </memory>
       <functions>
@@ -501,7 +506,7 @@
       <name>EV</name>
       <memory>
         <gpu:variable>
-          <type>int</type>
+          <type>unsigned int</type>
           <name>id</name>
         </gpu:variable>
         <gpu:variable>
@@ -564,9 +569,9 @@
           <name>diff_rate_um_x_twice_dof</name>
         </gpu:variable>
         <gpu:variable>
-          <type>int</type>
+          <type>unsigned int</type>
           <name>closest_ev_id</name>
-          <defaultValue>-1</defaultValue>
+          <defaultValue>0</defaultValue>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -852,7 +857,8 @@
         <!-- test secretory cell collision -->
         <gpu:function>
           <name>test_secretory_cell_collision</name>
-          <description>Checks for possible collisions with secretory boundaries. Outputs an optional collision_message. EVs colliding with a cell contain the parameter "closest_cell_id" > -1 and have a value on "closest_cell_distance"</description>
+          <description>Checks for possible collisions with secretory boundaries. Outputs an optional collision_message.
+          EVs colliding with a cell contain the parameter "closest_cell_id" > -1 and have a value on "closest_cell_distance"</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
@@ -884,7 +890,9 @@
         <!-- secretory cell collision resolution -->
         <gpu:function>
           <name>secretory_cell_collision_resolution</name>
-          <description>Corrects the position of an EV as a result of colliding with a cell. This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp; (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
+          <description>Corrects the position of an EV as a result of colliding with a cell.
+          This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp;
+          (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
@@ -946,7 +954,8 @@
         <!-- test ciliary cell collision -->
         <gpu:function>
           <name>test_ciliary_cell_collision</name>
-          <description>Checks for possible collisions with ciliary boundaries. Outputs an optional collision_message. EVs colliding with a cell contain the parameter "closest_cell_id" > -1 and have a value on "closest_cell_distance"</description>
+          <description>Checks for possible collisions with ciliary boundaries. Outputs an optional collision_message.
+          EVs colliding with a cell contain the parameter "closest_cell_id" > -1 and have a value on "closest_cell_distance"</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
@@ -979,7 +988,9 @@
         <!-- ciliary_cell collision resolution -->
         <gpu:function>
           <name>ciliary_cell_collision_resolution</name>
-          <description>Corrects the position of an EV as a result of colliding with a ciliary cell. This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp; (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
+          <description>Corrects the position of an EV as a result of colliding with a ciliary cell.
+          This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp;
+          (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
@@ -1049,7 +1060,8 @@
         <!-- test_collision_ev_default_ev_initial -->
         <gpu:function>
           <name>test_collision_ev_default_ev_initial</name>
-          <description>Checks for possible collisions with other EVs. Outputs an optional collision_message. EVs colliding with another EV contain the parameter "closest_ev_id" > -1 and have a value on "closest_ev_distance"</description>
+          <description>Checks for possible collisions with other EVs. Outputs an optional collision_message.
+          EVs colliding with another EV contain the parameter "closest_ev_id" > -1 and have a value on "closest_ev_distance"</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
@@ -1073,7 +1085,8 @@
         </gpu:function>
         <gpu:function>
           <name>test_collision_ev_initial_ev_default</name>
-          <description>Checks for possible collisions with other EVs. EVs in initial state colliding with another EV conserve the same position from the previous iteration</description>
+          <description>Checks for possible collisions with other EVs. EVs in initial state colliding
+          with another EV conserve the same position from the previous iteration</description>
           <currentState>initial</currentState>
           <nextState>initial</nextState>
           <inputs>
@@ -1098,7 +1111,8 @@
         <!-- test_collision_ev_default_ev_default -->
         <gpu:function>
           <name>test_collision_ev_default_ev_default</name>
-          <description>Checks for possible collisions with other EVs. Outputs an optional collision_message. EVs colliding with another EV contain the parameter "closest_ev_id" > -1 and have a value on "closest_ev_distance"</description>
+          <description>Checks for possible collisions with other EVs. Outputs an optional collision_message.
+          EVs colliding with another EV contain the parameter "closest_ev_id" > -1 and have a value on "closest_ev_distance"</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
@@ -1321,7 +1335,7 @@
       <name>location_ev_default</name>
       <variables>
         <gpu:variable>
-          <type>int</type>
+          <type>unsigned int</type>
           <name>id</name>
         </gpu:variable>
         <gpu:variable>
@@ -1370,7 +1384,7 @@
       <name>location_ev_initial</name>
       <variables>
         <gpu:variable>
-          <type>int</type>
+          <type>unsigned int</type>
           <name>id</name>
         </gpu:variable>
         <gpu:variable>
@@ -1601,7 +1615,7 @@
       <name>ciliary_cell_collision</name>
       <variables>
         <gpu:variable>
-          <type>int</type>
+          <type>unsigned int</type>
           <name>ev_id</name>
         </gpu:variable>
         <gpu:variable>
@@ -1698,7 +1712,7 @@
       <name>secretory_cell_collision</name>
       <variables>
         <gpu:variable>
-          <type>int</type>
+          <type>unsigned int</type>
           <name>ev_id</name>
         </gpu:variable>
         <gpu:variable>
