@@ -52,19 +52,19 @@
           @20c = 1.0034 mm^2/s
           0.00102 poise or 1.002 mPa.s
 
-    1 St = 100 cSt
-    1 cSt (centiStoke) = 10^-6 m^2/s = 1 mm^2/s
-    1 m^2/s = 106 centiStokes
+          1 St = 100 cSt
+          1 cSt (centiStoke) = 10^-6 m^2/s = 1 mm^2/s
+          1 m^2/s = 106 centiStokes
 
-    It is calculated by dividing the dynamic viscosity by density
-    https://www.engineeringclicks.com/viscosity-of-water/
+          It is calculated by dividing the dynamic viscosity by density
+          https://www.engineeringclicks.com/viscosity-of-water/
 
-    https://www.thermexcel.com/english/tables/eau_atm.htm
+          https://www.thermexcel.com/english/tables/eau_atm.htm
 
-    Density of water in 998.2 kg/m^3
-    Dynamic viscosity 0.001003 kg/m.s
+          Density of water in 998.2 kg/m^3
+          Dynamic viscosity 0.001003 kg/m.s
 
-    The SI unit of ν is m2/s. The SI unit of ρ is kg/m^3. ρ-rho
+          The SI unit of ν is m2/s. The SI unit of ρ is kg/m^3. ρ-rho
 
         </description>
         <defaultValue>0.001003</defaultValue>
@@ -212,7 +212,11 @@
         <description>Degrees of Freedom in the model</description>
         <defaultValue>2</defaultValue>
       </gpu:variable>
-      
+      <gpu:variable>
+        <type>unsigned int</type>
+        <name>iteration</name>
+        <defaultValue>0</defaultValue>
+      </gpu:variable>
       
     </gpu:constants>
     
@@ -228,6 +232,9 @@
     <gpu:stepFunctions>
       <gpu:stepFunction>
         <gpu:name>checkStopConditions</gpu:name>
+      </gpu:stepFunction>
+      <gpu:stepFunction>
+        <gpu:name>increase_iteration</gpu:name>
       </gpu:stepFunction>
     </gpu:stepFunctions>
     
@@ -597,6 +604,16 @@
           <type>float</type>
           <name>closest_ciliary_cell_distance</name>
           <defaultValue>100</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>last_ev_collision</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>last_cell_collision</name>
+          <defaultValue>0</defaultValue>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -1200,7 +1217,7 @@
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         
-        <!-- move -->
+        <!-- move_bm -->
         <gpu:function>
           <name>move_bm</name>
           <currentState>default</currentState>
@@ -1214,6 +1231,7 @@
           </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
+        <!-- move -->
         <gpu:function>
           <name>move</name>
           <currentState>default</currentState>
@@ -1227,13 +1245,14 @@
           </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
-
+        <!-- move_initial -->
         <gpu:function>
           <name>moveInitial</name>
           <currentState>initial</currentState>
           <nextState>initial</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
+        <!-- drag_force -->
         <gpu:function>
           <name>drag_force</name>
           <currentState>default</currentState>
@@ -1252,6 +1271,7 @@
           <gpu:reallocate>false</gpu:reallocate>
 	        <gpu:RNG>false</gpu:RNG>
         </gpu:function>
+        <!-- drag_force_bm -->
         <gpu:function>
           <name>drag_force_bm</name>
           <currentState>default</currentState>
@@ -1270,6 +1290,7 @@
           <gpu:reallocate>false</gpu:reallocate>
 	        <gpu:RNG>false</gpu:RNG>
         </gpu:function>
+        <!-- ev_default_apoptosis -->
         <gpu:function>
           <name>ev_default_apoptosis</name>
           <currentState>default</currentState>
@@ -1288,6 +1309,7 @@
           <gpu:reallocate>true</gpu:reallocate>
 	        <gpu:RNG>true</gpu:RNG>
         </gpu:function>
+        <!-- ev_initial_apoptosis -->
         <gpu:function>
           <name>ev_initial_apoptosis</name>
           <currentState>initial</currentState>
