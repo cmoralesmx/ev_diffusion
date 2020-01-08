@@ -255,7 +255,6 @@ __FLAME_GPU_STEP_FUNC__  void checkStopConditions() {
 		int nanInfVel = get_EV_default_variable_debugNanInfVelocity(i);
 		int nanInfLoc = get_EV_default_variable_debugNanInfLocation(i);
 		int nanInfValue = get_EV_default_variable_debugNanInfValue(i);
-		int dragVel0At = get_EV_default_variable_debugDragVel0At(i);
 
 		float div0 = get_EV_default_variable_debugDiv0(i);
 
@@ -405,12 +404,6 @@ __device__ int drag_force(xmachine_memory_EV* agent) {
 		// kinematic viscosity in kg/um.s = 18906.105469
 		float factor = const_6_pi_kinematic_viscosity * agent->radius_um * vel_mag_ums;
 
-		agent->debugOriginalVX = agent->vx;
-		agent->debugOriginalVY = agent->vy;
-		agent->colInfAuxFactor1 =  direction.x;
-		agent->colInfAuxFactor2 =  direction.y;
-		agent->colInfCorrectionFactor = factor;
-
 		float2 vel = float2_scale(direction, factor);
 		agent->vx = vel.x;
 		agent->vy = vel.y;
@@ -423,7 +416,7 @@ __device__ int drag_force(xmachine_memory_EV* agent) {
 __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_dir_x, 
 	float cell_dir_y, float cell_direction_length, float perp_dist_x, float perp_dist_y,
 	float cell_unit_normal_x, float cell_unit_normal_y, float caller_id) {
-	agent->debugDistDpNormal = 999999;
+	
 	// We compute the angle between velocity and wall direction based on
 	// the cosine of the angle betwen two vectors which is the quotient of the
 	// dot product of the vectors and the product of their magnitudes
@@ -432,15 +425,12 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 	float lengths_product = (vlength(agent->vx, agent->vy) * cell_direction_length);
 	checkDivZero(agent, lengths_product, caller_id); // 3000, 4000
 	float quotient = dp / lengths_product;
-	agent->debugDotProduct = dp;
-	agent->debugLengthsProduct = lengths_product;
-
+	
 	// Due to rounding errors, the quotient can have values out of the
 	// expected range for acosf() which produces NaN values
 	if(quotient > 1.0) { quotient = 1.0; }
 	else if (quotient < -1.0) { quotient = -1.0; }
 	float angle = acosf(quotient);
-	agent->debugAngle = angle;
 
 	// 2. reposition object
 	float normal_x = cell_unit_normal_x;
@@ -448,12 +438,8 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 
 	// 3. start by computing deltaS
 	float dist_dp_normal = dotprod(perp_dist_x, perp_dist_y, normal_x, normal_y);
-	//agent->debugInternPerpDistX = perp_dist_x;
-	//agent->debugInternPerpDistY = perp_dist_y;
-	agent->debugDistDpNormal = dist_dp_normal;
 
 	float sin_angle = sin(angle);
-	agent->debugSinAngle = sin_angle;
 
 	checkValueNanInf(agent, dist_dp_normal, caller_id + 5);
 	checkValueNanInf(agent, sin_angle, caller_id + 10); // 3110:secretory, 4110:ciliary
@@ -469,7 +455,6 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 		checkDivZero(agent, sin_angle, caller_id + 15);
 	}
 
-	agent->debugDeltaS = deltaS;
 	checkValueNanInf(agent, deltaS, caller_id + 20); // 3120:secretory, 4120:ciliary
 
 	// 4. estimate the displacement vector needed for the correction
@@ -479,8 +464,6 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 	// 5. update position by subtracting the displacement
 	agent->x -= displ.x;
 	agent->y -= displ.y;
-	agent->debugDisplX = displ.x;
-	agent->debugDisplY = displ.y;
 	checkNanInfLocation(agent, caller_id + 30); // 3130:secretory, 4130:ciliary
 
 	// 6. decompose the velocity
@@ -491,11 +474,7 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 	checkValueNanInf(agent, perp_dist_x, caller_id + 40);
 	checkValueNanInf(agent, perp_dist_y, caller_id + 45);
 	float2 normalVelocity = parallel(perp_dist_x, perp_dist_y, velocityProjection);
-	agent->debugNormalVelX = normalVelocity.x;
-	agent->debugNormalVelY = normalVelocity.y;
 	checkValueNanInf(agent, normalVelocity, caller_id + 50);
-
-	agent->debugVelocityProjection = velocityProjection;
 
 	checkNanInfVelocity(agent, caller_id + 55);
 
@@ -504,8 +483,6 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 	float tangentVelocity_y = agent->vy - normalVelocity.y;
 	checkValueNanInf(agent, tangentVelocity_x, caller_id + 60);
 	checkValueNanInf(agent, tangentVelocity_y, caller_id + 65);
-	agent->debugTangVelX = tangentVelocity_x;
-	agent->debugTangVelY = tangentVelocity_y;
 
 	//float prev_vx = agent->vx;
 	//float prev_vy = agent->vy;
@@ -577,14 +554,6 @@ __FLAME_GPU_FUNC__ int secretory_cell_collision_resolution(xmachine_memory_EV* a
 					&& (abs(projections.y) < message->cell_direction_length));
 
 			if ((vlength(perp_dist.x, perp_dist.y) < agent->radius_um) && test_needed) {
-				agent->debugExternPerpDistX = perp_dist.x;
-				agent->debugExternPerpDistY = perp_dist.y;
-				agent->debugExternProjX = projections.x;
-				agent->debugExternProjY = projections.y;
-				agent->debugExternCellDirLen = message->cell_direction_length;
-				agent->debugExternCellDirX = message->cell_direction_x;
-				agent->debugExternCellDirY = message->cell_direction_y;
-
 				solve_segment_collision(agent, message->cell_direction_x,
 					message->cell_direction_y, message->cell_direction_length,
 					perp_dist.x, perp_dist.y,
@@ -626,14 +595,6 @@ __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* age
 			bool tunneling = false;
 
 			if ((vlength(perp_dist.x, perp_dist.y) < agent->radius_um || tunneling) && test_needed) {
-				agent->debugExternPerpDistX = perp_dist.x;
-				agent->debugExternPerpDistY = perp_dist.y;
-				agent->debugExternProjX = projections.x;
-				agent->debugExternProjY = projections.y;
-				agent->debugExternCellDirLen = message->cell_direction_length;
-				agent->debugExternCellDirX = message->cell_direction_x;
-				agent->debugExternCellDirY = message->cell_direction_y;
-
 				solve_segment_collision(agent, message->cell_direction_x,
 					message->cell_direction_y, message->cell_direction_length,
 					perp_dist.x, perp_dist.y, message->unit_normal_x, message->unit_normal_y, 4100.0);
@@ -730,7 +691,7 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 {
 	int closest_cell = -2;
 	float closest_cell_distance = 100.f;
-	float separation_x_1k = 1000.f;
+	
 	float4 res;
 	float4 wall_direction;
 	float3 wall_normal;
@@ -765,7 +726,6 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 				{
 					closest_cell = message->id;
 					closest_cell_distance = res.y;
-					separation_x_1k = (res.y - agent->radius_um) * 1000.f;
 					
 					// wall direction values
 					wall_direction.x = message->direction_x;
@@ -799,7 +759,6 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 		agent->z = closest_cell;
 		agent->closest_secretory_cell_id = closest_cell;
 		agent->closest_secretory_cell_distance = closest_cell_distance;
-		agent->colInfSeparation_x_1k = separation_x_1k;
 		agent->last_cell_collision = iteration;
 		// write the corresponding collision_message
 		add_secretory_cell_collision_message(secretory_cell_collision_messages, agent->id,
@@ -817,7 +776,6 @@ __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xm
 {
 	int closest_cell = -2;
 	float closest_cell_distance = 100.f;
-	float separation_x_1k = 1000.f;
 	float4 res;
 	float4 wall_direction;
 	float3 wall_normal;
@@ -847,7 +805,6 @@ __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xm
 				{
 					closest_cell = message->id;
 					closest_cell_distance = res.y;
-					separation_x_1k = (res.y - agent->radius_um) * 1000.f;
 					// wall direction values
 					wall_direction.x = message->direction_x;
 					wall_direction.y = message->direction_y;
@@ -878,7 +835,6 @@ __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, xm
 		agent->z = closest_cell;
 		agent->closest_ciliary_cell_id = closest_cell;
 		agent->closest_ciliary_cell_distance = closest_cell_distance;
-		agent->colInfSeparation_x_1k = separation_x_1k;
 		agent->last_cell_collision = iteration;
 		// write the corresponding collision_message
 		add_ciliary_cell_collision_message(ciliary_cell_collision_messages, agent->id,
@@ -1093,16 +1049,12 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_default(xmachine_memory_EV* 
 		agent->y = pcd.correctedLocation.y;
 		agent->vx = pcd.correctedVelocity.x;
 		agent->vy = pcd.correctedVelocity.y;
-		agent->colInfCorrectionFactor = pcd.correctionFactor; // fac1
-		agent->colInfOverlap = pcd.overlap;
+		
 		/*
 		Vnorm could produce a Div0 error but this cannot be checked
 		inside the function where its value is computed. We do so here.
 		*/
-		agent->colInfVrel = pcd.vrel;  // L
-		agent->colInfCorrectionAppliedX = pcd.correctionApplied.x;
-		agent->colInfCorrectionAppliedY = pcd.correctionApplied.y;
-
+		
 		if(pcd.vrel < 1e-8){
 			agent->debugDiv0 = 6001;
 		}
@@ -1170,20 +1122,12 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 		agent->y = pcdi.correctedPosition.y;
 		agent->vx = pcdi.correctedVelocity.x;
 		agent->vy = pcdi.correctedVelocity.y;
-		agent->colInfCorrectionFactor = pcdi.correctionFactor;
-		agent->colInfOverlap = pcdi.overlap;
 		/*
 		both Vnorm and Vrel could produce a Div0 error but they cannot be checked
 		inside the function where their values are computed.
 		For debugging, we check their values here.
 		*/
-		agent->colInfVnorm = pcdi.vnorm; // vlength(ev1_velo.x, ev1_velo.y);
-		agent->colInfVrel = pcdi.vrel; // -77.7f;
-		agent->colInfAuxFactor1 = pcdi.auxiliaryFactors.x; // normal_velocity1.x
-		agent->colInfAuxFactor2 = pcdi.auxiliaryFactors.y; // normal_velocity1.y
-		agent->colInfCorrectionAppliedX = pcdi.correctionApplied.x;
-		agent->colInfCorrectionAppliedY = pcdi.correctionApplied.y;
-
+		
 		agent->closest_ev_id = ev2_id;
 		agent->closest_ev_distance = closest_ev_distance;
 		agent->last_ev_collision = iteration;
@@ -1230,10 +1174,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_initial_ev_default(xmachine_memory_EV* 
 		// the EV in initial position maintains the same location from the previous iteration
 		agent->x = agent->x_1;
 		agent->y = agent->y_1;
-		agent->colInfCorrectionFactor = -1;
-		agent->colInfOverlap = max_overlap;
-		agent->colInfCorrectionAppliedX = -agent->vx * dt;
-		agent->colInfCorrectionAppliedY = -agent->vy * dt;
+		
 		agent->time_in_initial_state += dt;
 
 		agent->closest_ev_id = ev2_id;
@@ -1258,53 +1199,12 @@ __FLAME_GPU_FUNC__ int reset_state(xmachine_memory_EV* agent) {
 	agent->closest_ev_id = 0;
 	agent->closest_ev_distance = 100;
 
-	// debugging values
-	agent->colInfVnorm = 0;
-	agent->colInfVrel = 0;
-	agent->colInfOverlap = 0;
-	agent->colInfCorrectionFactor = 0;
-	agent->colInfAuxFactor1 = 0;
-	agent->colInfAuxFactor2 = 0;
-	agent->colInfCorrectionAppliedX = 0;
-	agent->colInfCorrectionAppliedY = 0;
-	agent->colInfSeparation_x_1k = -1;
-
 	agent->debugNanInfVelocity = 0;
 	agent->debugNanInfLocation = 0;
 
 	agent->debugDragVel0At = 0;
 	agent->debugDiv0 = 0;
 	agent->debugNanInfValue = 0;
-
-	agent->debugOriginalX = 0;
-	agent->debugOriginalY = 0;
-	agent->debugOriginalVX = 0;
-	agent->debugOriginalVY = 0;
-	agent->debugDistDpNormal = 0;
-	agent->debugDotProduct = -997.7;
-	agent->debugLengthsProduct = -998.8;
-
-	agent->debugQuotient = -999.9;
-	agent->debugAngle = 0;
-	agent->debugSinAngle = 0;
-    agent->debugDeltaS = 0;
-	agent->debugDisplX = 0;
-	agent->debugDisplY = 0;
-
-	agent->debugNormalVelX = 0;
-	agent->debugNormalVelY = 0;
-	agent->debugTangVelX = 0;
-	agent->debugTangVelY = 0;
-
-	agent->debugVelocityProjection = 1002;
-
-	agent->debugExternPerpDistX = 2000;
-	agent->debugExternPerpDistY = 2001;
-	agent->debugExternProjX = 2002;
-	agent->debugExternProjY = 2003;
-	agent->debugExternCellDirLen = 2004;
-	agent->debugExternCellDirX = 2005;
-	agent->debugExternCellDirY = 2006;
 
 	agent->debugNonFiniteBmAt = -1;
 
@@ -1314,13 +1214,6 @@ __FLAME_GPU_FUNC__ int reset_state(xmachine_memory_EV* agent) {
 __FLAME_GPU_FUNC__ int reset_state_initial(xmachine_memory_EV* agent) {
 	agent->closest_ev_id = 0;
 	agent->closest_ev_distance = 100;
-
-	// debugging values
-	agent->colInfCorrectionFactor = 0;
-	agent->colInfOverlap = 0;
-	agent->colInfCorrectionAppliedX = 0;
-	agent->colInfCorrectionAppliedY = 0;
-	agent->colInfSeparation_x_1k = -1;
 
 	return 0;
 }
@@ -1371,8 +1264,7 @@ __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand4
 		checkValueNanInf(agent, agent->bm_vx, 1000);
 		checkValueNanInf(agent, agent->bm_vy, 1005);
 		checkNanInfVelocity(agent, 1010);
-		agent->debugOriginalVX = agent->vx;
-		agent->debugOriginalVY = agent->vy;
+		
 		if(agent->debugNonFiniteBmAt < 0)
 			agent->debugNonFiniteBmAt = -4;
 	} else {
@@ -1430,13 +1322,6 @@ __FLAME_GPU_FUNC__ int move_bm(xmachine_memory_EV* agent){
 
 	checkNanInfVelocity(agent, 2005);
 
-	agent->debugOriginalVX = agent->vx;
-	agent->debugOriginalVY = agent->vy;
-	agent->debugOriginalX = agent->x + agent->vx * dt;
-	agent->debugOriginalY = agent->y + agent->vy * dt;
-	checkValueNanInf(agent, agent->debugOriginalX, 2010);
-	checkValueNanInf(agent, agent->debugOriginalY, 2015);
-
 	agent->x += (agent->vx + agent->bm_vx) * dt;
 	agent->y += (agent->vy + agent->bm_vy) * dt;
 	checkNanInfLocation(agent, 2020);
@@ -1452,13 +1337,6 @@ __FLAME_GPU_FUNC__ int move(xmachine_memory_EV* agent){
 	agent->y_1 = agent->y;
 
 	checkNanInfVelocity(agent, 2005);
-
-	agent->debugOriginalVX = agent->vx;
-	agent->debugOriginalVY = agent->vy;
-	agent->debugOriginalX = agent->x + agent->vx * dt;
-	agent->debugOriginalY = agent->y + agent->vy * dt;
-	checkValueNanInf(agent, agent->debugOriginalX, 2010);
-	checkValueNanInf(agent, agent->debugOriginalY, 2015);
 
 	agent->x = agent->x + agent->vx * dt;
 	agent->y = agent->y + agent->vy * dt;
@@ -1562,15 +1440,17 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 				// apoptosis timer, time_in_initial_state, velocity_um
 				time_in_initial * 2, time_in_initial, velocity_ums,
 				// colInfVnorm - colInfSeparation_x_1k
-				0, 0, 0, 0, 0, 0, 0, 0, -1,
+				//0, 0, 0, 0, 0, 0, 0, 0, -1,
 				// debug
 				// debugNanInfVelocity - debugSinAngle
-				0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -997.7, -998.8, -999.9, 0, 0,
+				//0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -997.7, -998.8, -999.9, 0, 0,
 				// debugDeltaS - debugTangVelY
-				0, 0, 0, 0, 0, 0, 0,
+				//0, 0, 0, 
+				0, 0, 0, 0,
 				// debugInternPerpDistX - debugNonFiniteBmAt
 				//1000, 1001,
-				1002, 2000, 2001, 2002, 2003, 2004, 2005, 2006, -1
+				//1002, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 
+				-1, -1
 				);
 		}
 	}

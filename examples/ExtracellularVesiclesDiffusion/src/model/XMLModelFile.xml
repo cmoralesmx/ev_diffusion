@@ -635,51 +635,7 @@
           <name>velocity_ums</name>
           <description>Velocity in um/s - mean diffusion distance obtained from MSD</description>
         </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>colInfVnorm</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>colInfVrel</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>colInfOverlap</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>colInfCorrectionFactor</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>colInfAuxFactor1</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>colInfAuxFactor2</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>colInfCorrectionAppliedX</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>colInfCorrectionAppliedY</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>colInfSeparation_x_1k</name>
-          <defaultValue>-1</defaultValue>
-        </gpu:variable>
+
         <gpu:variable>
           <type>float</type>
           <name>debugNanInfVelocity</name>
@@ -689,12 +645,6 @@
           <type>float</type>
           <name>debugNanInfLocation</name>
           <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugDragVel0At</name>
-          <description>For debugging terminal velocity due to drag.</description>
-          <defaultValue>-1</defaultValue>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -710,129 +660,10 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>debugOriginalX</name>
-          <defaultValue>0</defaultValue>
+          <name>debugDragVel0At</name>
+          <defaultValue>-1</defaultValue>
         </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugOriginalY</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugOriginalVX</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugOriginalVY</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugDistDpNormal</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugDotProduct</name>
-          <defaultValue>-997.7</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugLengthsProduct</name>
-          <defaultValue>-998.8</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugQuotient</name>
-          <defaultValue>-999.9</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugAngle</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugSinAngle</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugDeltaS</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugDisplX</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugDisplY</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugNormalVelX</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugNormalVelY</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugTangVelX</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugTangVelY</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugVelocityProjection</name>
-          <defaultValue>1002</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugExternPerpDistX</name>
-          <defaultValue>2000</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugExternPerpDistY</name>
-          <defaultValue>2001</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugExternProjX</name>
-          <defaultValue>2002</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugExternProjY</name>
-          <defaultValue>2003</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugExternCellDirLen</name>
-          <defaultValue>2004</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugExternCellDirX</name>
-          <defaultValue>2005</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugExternCellDirY</name>
-          <defaultValue>2006</defaultValue>
-        </gpu:variable>
+        
         <gpu:variable>
           <type>float</type>
           <name>debugNonFiniteBmAt</name>
