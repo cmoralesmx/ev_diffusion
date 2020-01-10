@@ -1558,7 +1558,7 @@
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>1</gpu:zmax>
       </gpu:partitioningSpatial>
-      <gpu:bufferSize>1048576</gpu:bufferSize>
+      <gpu:bufferSize>2097152</gpu:bufferSize>
     </gpu:message>
     <!-- secretory cell collision message -->
     <gpu:message>
@@ -1654,7 +1654,7 @@
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>1</gpu:zmax>
       </gpu:partitioningSpatial>
-      <gpu:bufferSize>1048576</gpu:bufferSize>
+      <gpu:bufferSize>2097152</gpu:bufferSize>
     </gpu:message>
   </messages>
   
