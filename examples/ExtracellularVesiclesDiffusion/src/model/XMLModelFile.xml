@@ -231,9 +231,6 @@
     </gpu:initFunctions>
     <gpu:stepFunctions>
       <gpu:stepFunction>
-        <gpu:name>checkStopConditions</gpu:name>
-      </gpu:stepFunction>
-      <gpu:stepFunction>
         <gpu:name>increase_iteration</gpu:name>
       </gpu:stepFunction>
     </gpu:stepFunctions>
