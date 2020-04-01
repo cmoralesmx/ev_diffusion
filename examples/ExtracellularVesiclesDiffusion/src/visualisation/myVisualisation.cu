@@ -51,7 +51,7 @@ bool single_iteration_flag = false;
 bool visualisation_enabled = true;
 
 //Simulation output buffers/textures
-cudaGraphicsResource_t EV_default_cgr, EV_initial_cgr;
+cudaGraphicsResource_t EV_default_cgr, EV_initial_cgr, EV_collision_ev_default_cgr;
 // vertex Shader
 GLuint vertexShader;
 GLuint fragmentShader;
@@ -65,9 +65,9 @@ GLuint ciliary_vertexShader;
 GLuint ciliary_shaderProgram;
 
 // bo variables
-GLuint sphereVerts, sphereInitialVerts;
+GLuint sphereVerts, sphereInitialVerts, sphereCollisionEvDefaultVerts;
 
-Shader *evPtsShader, *evGeoShader, *evInitialShader;
+Shader *evPtsShader, *evGeoShader, *evInitialShader, *evCollisionEvDefaultShader;
 Shader *secretoryShader, *secretoryThickShader;
 Shader *ciliaryShader, *ciliaryThickShader;
 
@@ -223,7 +223,8 @@ void initVisualisation()
 	
 	evPtsShader = new Shader("./shaders/ev_points_vs.glsl", "./shaders/ev_points_fs.glsl");
 	evGeoShader = new Shader("./shaders/ev_spheres_vs.glsl", "./shaders/ev_spheres_fs.glsl", "./shaders/ev_spheres_gs.glsl");
-	evInitialShader = new Shader("./shaders/ev_initial_vs.glsl", "./shaders/ev_initial_fs.glsl", "./shaders/ev_initial_gs.glsl");
+	evInitialShader = new Shader("./shaders/ev_initial_vs.glsl", "./shaders/ev_spheres_fs.glsl", "./shaders/ev_spheres_gs.glsl");
+	evCollisionEvDefaultShader = new Shader("./shaders/ev_collision_vs.glsl", "./shaders/ev_spheres_fs.glsl", "./shaders/ev_spheres_gs.glsl");
 	
 	secretoryShader = new Shader("./shaders/cells_all_thin_vs.glsl", "./shaders/cells_secretory_fs.glsl");
 	secretoryThickShader = new Shader("./shaders/cells_all_thick_vs.glsl", "./shaders/cells_secretory_fs.glsl", "./shaders/cells_all_thick_gs.glsl");
@@ -234,6 +235,9 @@ void initVisualisation()
 	createVBO(&sphereVerts, get_agent_EV_MAX_count() * sizeof(glm::vec3));
 	// registers a GraphicsGLResource with CUDA for interop access
 	gpuErrchk(cudaGraphicsGLRegisterBuffer(&EV_default_cgr, sphereVerts, cudaGraphicsMapFlagsNone));
+
+	createVBO(&sphereCollisionEvDefaultVerts, get_agent_EV_MAX_count() * sizeof(glm::vec3));
+	gpuErrchk(cudaGraphicsGLRegisterBuffer(&EV_collision_ev_default_cgr, sphereCollisionEvDefaultVerts, cudaGraphicsMapFlagsNone));
 
 	createVBO(&sphereInitialVerts, get_agent_EV_MAX_count() * sizeof(glm::vec3));
 	gpuErrchk(cudaGraphicsGLRegisterBuffer(&EV_initial_cgr, sphereInitialVerts, cudaGraphicsMapFlagsNone));
@@ -356,7 +360,7 @@ void runCuda()
 	dim3 grid;
 	dim3 threads;
 
-	glm::vec3 *dptr, *dptr_initial;
+	glm::vec3 *dptr, *dptr_initial, *dptr_collision_ev_default;
 
 	if (get_agent_EV_default_count() > 0 && visualisation_enabled)
 	{
@@ -389,6 +393,22 @@ void runCuda()
 		gpuErrchkLaunch();
 		// unmap buffer object
 		gpuErrchk(cudaGraphicsUnmapResources(1, &EV_initial_cgr));
+	}
+	if (get_agent_EV_collision_ev_default_count() > 0 && visualisation_enabled)
+	{
+		size_t accessibleBufferSize = 0;
+		// map OpenGL buffer object for writing from CUDA
+		gpuErrchk(cudaGraphicsMapResources(1, &EV_collision_ev_default_cgr));
+		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&dptr_collision_ev_default, &accessibleBufferSize, EV_collision_ev_default_cgr));
+		//cuda block size
+		tile_size = (int)ceil((float)get_agent_EV_collision_ev_default_count() / threads_per_tile);
+		grid = dim3(tile_size, 1, 1);
+		threads = dim3(threads_per_tile, 1, 1);
+
+		output_EV_agent_to_VBO << < grid, threads >> >(get_device_EV_collision_ev_default_agents(), dptr_collision_ev_default);
+		gpuErrchkLaunch();
+		// unmap buffer object
+		gpuErrchk(cudaGraphicsUnmapResources(1, &EV_collision_ev_default_cgr));
 	}
 }
 
@@ -514,6 +534,19 @@ void display()
 		glEnableVertexAttribArray(1);
 
 		glDrawArrays(GL_POINTS, 0, get_agent_EV_initial_count());
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+	}
+	if (get_agent_EV_collision_ev_default_count() > 0) {
+		evCollisionEvDefaultShader->use();
+		evCollisionEvDefaultShader->setMat4("mvp", mvp);
+
+		glBindBuffer(GL_ARRAY_BUFFER, sphereCollisionEvDefaultVerts);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)(2 * sizeof(float)));
+		glEnableVertexAttribArray(1);
+
+		glDrawArrays(GL_POINTS, 0, get_agent_EV_collision_ev_default_count());
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 	checkGLError("display 1c");
