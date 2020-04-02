@@ -581,6 +581,14 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
+          <name>radius_um_120</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>radius_um_sq</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
           <name>diffusion_rate_um</name>
         </gpu:variable>
         <gpu:variable>

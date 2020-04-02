@@ -55,7 +55,7 @@ __device__ __host__ float radians(float degrees){
 __device__ float euclidean_distance(xmachine_memory_EV* agent, 
 	float message_x, float message_y)
 {
-	return sqrt((agent->x - message_x) * (agent->x - message_x) +
+	return sqrtf((agent->x - message_x) * (agent->x - message_x) +
 		(agent->y - message_y) * (agent->y - message_y));
 }
 
@@ -180,7 +180,7 @@ __device__ float dotprod(float x1, float y1, float x2, float y2) {
 }
 
 __device__ __host__ float vlength(float x, float y) {
-	return sqrt(x*x + y*y);
+	return sqrtf(x*x + y*y);
 }
 
 // https://github.com/takagi/cl-cuda/blob/master/include/float4.h
@@ -448,7 +448,7 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 	// 3. start by computing deltaS
 	float dist_dp_normal = dotprod(perp_dist_x, perp_dist_y, normal_x, normal_y);
 
-	float sin_angle = sin(angle);
+	float sin_angle = sinf(angle);
 
 	checkValueNanInf(agent, dist_dp_normal, caller_id + 5);
 	checkValueNanInf(agent, sin_angle, caller_id + 10); // 3110:secretory, 4110:ciliary
@@ -561,18 +561,17 @@ __FLAME_GPU_FUNC__ int secretory_cell_collision_resolution(xmachine_memory_EV* a
 
 			bool test_needed = ((abs(projections.x) < message->cell_direction_length)
 					&& (abs(projections.y) < message->cell_direction_length));
-
-			if ((vlength(perp_dist.x, perp_dist.y) < agent->radius_um) && test_needed) {
+			if (((perp_dist.x * perp_dist.x + perp_dist.y * perp_dist.y) < agent->radius_um_sq) && test_needed) {
 				solve_segment_collision(agent, message->cell_direction_x,
 					message->cell_direction_y, message->cell_direction_length,
 					perp_dist.x, perp_dist.y,
 					message->unit_normal_x, message->unit_normal_y, 3100.0);
 			}
-			else if (abs(vlength(ev_wall_vectors.x, ev_wall_vectors.y)) < agent->radius_um) {
+			else if (abs(ev_wall_vectors.x * ev_wall_vectors.x + ev_wall_vectors.y * ev_wall_vectors.y) < agent->radius_um_sq) {
 				// collision with 1st end point
 				solve_segment_end_point_collision(agent, message->p1_x, message->p1_y, 3200.0);
 			}
-			else if (abs(vlength(ev_wall_vectors.z, ev_wall_vectors.w)) < agent->radius_um) {
+			else if (abs(ev_wall_vectors.z * ev_wall_vectors.z + ev_wall_vectors.w * ev_wall_vectors.w) < agent->radius_um_sq) {
 				// collision with 2nd end point
 				solve_segment_end_point_collision(agent, message->p2_x, message->p2_y, 3300.0);
 			}
@@ -602,17 +601,16 @@ __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* age
 
 			bool test_needed = (abs(projections.x) < message->cell_direction_length) && (abs(projections.y) < message->cell_direction_length);
 			bool tunneling = false;
-
-			if ((vlength(perp_dist.x, perp_dist.y) < agent->radius_um || tunneling) && test_needed) {
+			if (( (perp_dist.x * perp_dist.x + perp_dist.y * perp_dist.y) < agent->radius_um_sq || tunneling) && test_needed) {
 				solve_segment_collision(agent, message->cell_direction_x,
 					message->cell_direction_y, message->cell_direction_length,
 					perp_dist.x, perp_dist.y, message->unit_normal_x, message->unit_normal_y, 4100.0);
 			}
-			else if (abs(vlength(ev_wall_vectors.x, ev_wall_vectors.y)) < agent->radius_um) {
+			else if (abs(ev_wall_vectors.x * ev_wall_vectors.x + ev_wall_vectors.y * ev_wall_vectors.y) < agent->radius_um_sq) {
 				// collision with 1st end point
 				solve_segment_end_point_collision(agent, message->p1_x, message->p1_y, 4200.0);
 			}
-			else if (abs(vlength(ev_wall_vectors.z, ev_wall_vectors.w)) < agent->radius_um) {
+			else if (abs(ev_wall_vectors.z * ev_wall_vectors.z + ev_wall_vectors.w * ev_wall_vectors.w) < agent->radius_um_sq) {
 				// collision with 2nd end point
 				solve_segment_end_point_collision(agent, message->p2_x, message->p2_y, 4300.0);
 			}
@@ -679,7 +677,7 @@ __device__ float4 point_to_line_segment_distance(float x, float y, float x1, flo
 	dy = y - yy;
 
 	result.x = param;
-	result.y = sqrt(dx * dx + dy * dy); // distance between p
+	result.y = sqrtf(dx * dx + dy * dy); // distance between p
 	result.z = xx;
 	result.w = yy;
 	
@@ -728,8 +726,8 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 				message->p1_x, message->p1_y, message->p2_x, message->p2_y);
 
 			// if the ev new position is projecting over the segment
-			// and the distance to the segment < 1.5 x radius
-			if (res.y < agent->radius_um * 1.5)
+			// and the distance to the segment < 1.2 x radius
+			if (res.y < agent->radius_um_120)
 			{
 				if (res.y < closest_cell_distance)
 				{
@@ -805,7 +803,7 @@ xmachine_message_ciliary_cell_location_list* location_messages,
 				message->p1_x, message->p1_y, message->p2_x, message->p2_y);
 
 			// if the distance to segment < radius
-			if (res.y < agent->radius_um * 1.5)
+			if (res.y < agent->radius_um_120)
 			{
 				//printf("ciliary res.x: %f res.y:%f radius_um:%f\n", res.x, res.y, agent->radius_um);
 				// save the reference if this is the first candidate collision
@@ -1156,7 +1154,6 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 					ev2_vx = message->vx;
 					ev2_vy = message->vy;
 					ev2_mass_ag = message->mass_ag;
-					//ev2_radius_um = message->radius_um;
 				}
 			}
 		}
@@ -1281,7 +1278,6 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_bounced(xmachine_memory_EV* 
 					ev2_vx = message->vx;
 					ev2_vy = message->vy;
 					ev2_mass_ag = message->mass_ag;
-					//ev2_radius_um = message->radius_um;
 				}
 			}
 		}
@@ -1349,7 +1345,7 @@ __FLAME_GPU_FUNC__ int reset_state_collision_ev_default(xmachine_memory_EV* agen
 
 	float dx = agent->x - agent->x_1;
 	float dy = agent->y - agent->y_1;
-	if(sqrt(dx*dx + dy * dy) > 10 * agent->velocity_ums){
+	if( (dx * dx + dy * dy) > 100 * agent->velocity_ums){
 		return 1;
 	}
 
@@ -1387,7 +1383,7 @@ __FLAME_GPU_FUNC__ int reset_state_collision_ev_initial(xmachine_memory_EV* agen
 __FLAME_GPU_FUNC__ int reset_state_collision_wall(xmachine_memory_EV* agent) {
 	float dx = agent->x - agent->x_1;
 	float dy = agent->y - agent->y_1;
-	if(sqrt(dx*dx + dy * dy) > 10 * agent->velocity_ums){
+	if( dx * dx + dy * dy > 100 * agent->velocity_ums){
 		return 1;
 	}
 	agent->closest_ciliary_cell_id = -1;
@@ -1431,10 +1427,10 @@ __FLAME_GPU_FUNC__ int brownian_movement_1d(xmachine_memory_EV* agent, RNG_rand4
 	
 	u1 = rnd<CONTINUOUS>(rand48);
 	u2 = rnd<CONTINUOUS>(rand48);
-	r = sqrt(-2.0 * log(u1));
-	theta = 2 * M_PI * u2;
+	r = sqrtf(-2.0 * log(u1));
+	theta = 2 * u2;
 	// the product of r * (cos|sin)(theta) becomes the displacement factor to use in this iteration
-	agent->vx = agent->velocity_ums * r * cos(theta) * dt;
+	agent->vx = agent->velocity_ums * r * cospif(theta) * dt;
 	
 	return 0;
 }
@@ -1445,10 +1441,10 @@ __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand4
 		agent->debugNonFiniteBmAt = -2;
 		u1 = rnd<CONTINUOUS>(rand48);
 		u2 = rnd<CONTINUOUS>(rand48);
-		r = sqrt(-2*log(u1)) * agent->mdd125;
-		theta = 2 * M_PI * u2;
-		float bm_vx = (r * cos(theta));
-		float bm_vy = (r * sin(theta));
+		r = sqrtf(-2*log(u1)) * agent->mdd125;
+		theta = 2 * u2;
+		float bm_vx = (r * cospif(theta));
+		float bm_vy = (r * sinpif(theta));
 		if(isfinite(bm_vx) && isfinite(bm_vy)){
 			agent->bm_vx = bm_vx;
 			agent->bm_vy = bm_vy;
@@ -1598,7 +1594,7 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 			float diffusion_rate_ums = D_ms * 1e+12; // square micrometre
 			// Mean Squared Displacement (MSD) x^2 = 2 * dof * D * t
 			// mean displacement distance (MDD) = sqrt(MSD)
-			float MDD_01s = sqrt(2 * dof * diffusion_rate_ums * bm_frequency);
+			float MDD_01s = sqrtf(2 * dof * diffusion_rate_ums * bm_frequency);
 			// MDD is the mean distance a particle would diffuse in time t.
 			// After experimentation, we found that sampling from a normal distribution
 			// with parameters: mean = 0 and std = MDD@0.1sec / 1.25, produces the
@@ -1644,8 +1640,10 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 
 			// EV_secretoryCell_list, id, x, y, z, x_1, y_1, vx, vy, bm_vx, bm_vy, last_bm,
 			add_EV_agent(EVs, id, x, y, 0, x - vx * dt, y - vy * dt, vx, vy, 0, 0, 0,
-				// mass_ag, radius_um, diffusion_rate_um, MDD_01s, mdd125
-				mass_ag, radius_um, diffusion_rate_ums, MDD_01s, mdd125,
+				// mass_ag, radius_um, radius_um * 1.2, radius_um^2
+				mass_ag, radius_um, radius_um * 1.2, radius_um * radius_um, 
+				// diffusion_rate_um, MDD_01s, mdd125
+				diffusion_rate_ums, MDD_01s, mdd125,
 				// closest: ev_d_id, d_dist, ev_i_id, i_dist, ev_b_id, b_dist
 				0, 100, 0, 100, 0, 100,
 				// closest: secretory, dist, ciliary, dist, last_[ev|cell]_collision, age
