@@ -394,7 +394,6 @@ __device__ int drag_force_bm(xmachine_memory_EV* agent) {
 		float2 vel = float2_scale(vel_unit, factor);
 		agent->vx = vel.x;
 		agent->vy = vel.y;
-		checkNanInfVelocity(agent, 1600);
 	}
 	return 0;
 }
@@ -432,7 +431,6 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 	// 1. angle between velocity and wall direction
 	float dp = dotprod(agent->vx, agent->vy, cell_dir_x, cell_dir_y);
 	float lengths_product = (vlength(agent->vx, agent->vy) * cell_direction_length);
-	checkDivZero(agent, lengths_product, caller_id); // 3000, 4000
 	float quotient = dp / lengths_product;
 	
 	// Due to rounding errors, the quotient can have values out of the
@@ -447,11 +445,7 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 
 	// 3. start by computing deltaS
 	float dist_dp_normal = dotprod(perp_dist_x, perp_dist_y, normal_x, normal_y);
-
 	float sin_angle = sinf(angle);
-
-	checkValueNanInf(agent, dist_dp_normal, caller_id + 5);
-	checkValueNanInf(agent, sin_angle, caller_id + 10); // 3110:secretory, 4110:ciliary
 	float deltaS = 0;
 
 	// deltaS matches the value of 'closest_secretory_cell_distance'
@@ -461,51 +455,31 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 		deltaS = agent->radius_um + dist_dp_normal;
 	} else {
 		deltaS = (agent->radius_um + dist_dp_normal) / sin_angle;
-		checkDivZero(agent, sin_angle, caller_id + 15);
 	}
-
-	checkValueNanInf(agent, deltaS, caller_id + 20); // 3120:secretory, 4120:ciliary
 
 	// 4. estimate the displacement vector needed for the correction
 	float2 displ = parallel(agent->vx, agent->vy, deltaS);
-	checkValueNanInf(agent, displ, caller_id + 25);
 
 	// 5. update position by subtracting the displacement
 	agent->x -= displ.x;
 	agent->y -= displ.y;
-	checkNanInfLocation(agent, caller_id + 30); // 3130:secretory, 4130:ciliary
 
 	// 6. decompose the velocity
 	// velocity vector component perpendicular to wall just before impact
 	float velocityProjection = projection(agent->vx, agent->vy, perp_dist_x, perp_dist_y);
-	checkValueNanInf(agent, velocityProjection, caller_id + 35);
-
-	checkValueNanInf(agent, perp_dist_x, caller_id + 40);
-	checkValueNanInf(agent, perp_dist_y, caller_id + 45);
 	float2 normalVelocity = parallel(perp_dist_x, perp_dist_y, velocityProjection);
-	checkValueNanInf(agent, normalVelocity, caller_id + 50);
-
-	checkNanInfVelocity(agent, caller_id + 55);
-
+	
 	// velocity vector component parallel to wall; unchanged by impact
 	float tangentVelocity_x = agent->vx - normalVelocity.x;
 	float tangentVelocity_y = agent->vy - normalVelocity.y;
-	checkValueNanInf(agent, tangentVelocity_x, caller_id + 60);
-	checkValueNanInf(agent, tangentVelocity_y, caller_id + 65);
-
-	//float prev_vx = agent->vx;
-	//float prev_vy = agent->vy;
+	
 	// velocity vector component perpendicular to wall just after impact
 	float new_vx = tangentVelocity_x + (-normalVelocity.x);
 	float new_vy = tangentVelocity_y + (-normalVelocity.y);
 	if (isfinite(new_vx) && isfinite(new_vy)){
 		agent->vx = new_vx;
 		agent->vy = new_vy;
-	} else {
-		checkValueNanInf(agent, new_vx, caller_id + 70);
-		checkValueNanInf(agent, new_vy, caller_id + 75);
-	}
-	checkNanInfVelocity(agent, caller_id + 70);
+	} 
 	return 0;
 }
 
@@ -519,13 +493,8 @@ __device__  int solve_segment_end_point_collision(xmachine_memory_EV* agent,
 	// move particle so that it just touches the endpoint			
 	float L = agent->radius_um - vlength(distp_x, distp_y);
 	float vrel = vlength(agent->vx, agent->vy);
-
-	checkNanInfLocation(agent, caller_id + 1);
-	checkDivZero(agent, vrel, caller_id + 5);
 	agent->x += agent->vx * (-L / vrel);
 	agent->y += agent->vy * (-L / vrel);
-
-	checkNanInfVelocity(agent, caller_id + 6);
 
 	// normal velocity vector just before the impact
 	float2 normalVelo = project(agent->vx, agent->vy, distp_x, distp_y);
@@ -537,8 +506,6 @@ __device__  int solve_segment_end_point_collision(xmachine_memory_EV* agent,
 	//// final velocity vector after collision
 	agent->vx = -1.0 * normalVelo.x + tangentVelo_x;
 	agent->vy = -1.0 * normalVelo.y + tangentVelo_y;
-	checkNanInfVelocity(agent, caller_id + 10);
-
 	return 0;
 }
 
@@ -1183,12 +1150,6 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 		agent->closest_ev_initial_id = ev2_id;
 		agent->closest_ev_initial_distance = closest_ev_distance;
 		agent->last_ev_collision = iteration;
-
-		//checkDivZero(agent, pcdi.vrel, 5001);
-		checkDivZero(agent, pcdi.vnorm, 5002);
-
-		checkNanInfVelocity(agent, 5003);
-		checkNanInfLocation(agent, 5007);
 	}
 
 	return 0;
@@ -1232,12 +1193,6 @@ __FLAME_GPU_FUNC__ int test_collision_ev_initial_ev_default(xmachine_memory_EV* 
 		agent->closest_ev_default_id = ev2_id;
 		agent->closest_ev_default_distance = closest_ev_distance;
 		agent->last_ev_collision = iteration;
-
-		//checkDivZero(agent, pcdi.vrel, 5001);
-		//checkDivZero(agent, pcdi.vnorm, 6002);
-
-		checkNanInfVelocity(agent, 5501);
-		checkNanInfLocation(agent, 5510);
 	}
 
 	return 0;
@@ -1310,12 +1265,6 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_bounced(xmachine_memory_EV* 
 		agent->closest_ev_bounced_id = ev2_id;
 		agent->closest_ev_bounced_distance = closest_ev_distance;
 		agent->last_ev_collision = iteration;
-
-		//checkDivZero(agent, pcdi.vrel, 5001);
-		checkDivZero(agent, pcdi.vnorm, 5002);
-
-		checkNanInfVelocity(agent, 5003);
-		checkNanInfLocation(agent, 5007);
 	}
 
 	return 0;
@@ -1458,9 +1407,6 @@ __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand4
 			agent->debugNonFiniteBmAt = agent->age;
 		}
 		agent->last_bm = 0;
-		checkValueNanInf(agent, agent->bm_vx, 1000);
-		checkValueNanInf(agent, agent->bm_vy, 1005);
-		checkNanInfVelocity(agent, 1010);
 		
 		if(agent->debugNonFiniteBmAt < 0)
 			agent->debugNonFiniteBmAt = -4;
@@ -1513,34 +1459,21 @@ __FLAME_GPU_FUNC__ int ev_initial_apoptosis(xmachine_memory_EV* agent){
  
  */
 __FLAME_GPU_FUNC__ int move_bm(xmachine_memory_EV* agent){
-
-	checkNanInfLocation(agent, 2000);
-
 	agent->x_1 = agent->x;
 	agent->y_1 = agent->y;
 
-	checkNanInfVelocity(agent, 2005);
-
 	agent->x += agent->vx;
 	agent->y += agent->vy;
-	checkNanInfLocation(agent, 2020);
 
 	agent->age += dt;
 	agent->last_bm += dt;
     return 0;
 }
 __FLAME_GPU_FUNC__ int move(xmachine_memory_EV* agent){
-
-	checkNanInfLocation(agent, 2000);
-
 	agent->x_1 = agent->x;
 	agent->y_1 = agent->y;
-
-	checkNanInfVelocity(agent, 2005);
-
 	agent->x += agent->vx * dt;
 	agent->y += agent->vy * dt;
-	checkNanInfLocation(agent, 2020);
 
 	agent->age += dt;
     return 0;
