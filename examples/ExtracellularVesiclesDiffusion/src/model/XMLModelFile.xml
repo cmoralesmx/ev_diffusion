@@ -228,6 +228,10 @@
         <name>iteration</name>
         <defaultValue>0</defaultValue>
       </gpu:variable>
+      <gpu:variable>
+        <type>fvec4</type>
+        <name>minMaxCoords</name>
+      </gpu:variable>
       
     </gpu:constants>
     
@@ -556,14 +560,18 @@
         <gpu:variable>
           <type>float</type>
           <name>bm_vx</name>
-          <description>The component on X of velocity_um</description>
+          <description>The component on X of BM velocity</description>
           <defaultValue>0</defaultValue>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
           <name>bm_vy</name>
-          <description>The component on Y of velocity_um</description>
+          <description>The component on Y of BM velocity</description>
           <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>fvec2</type>
+          <name>bm_r</name>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -578,10 +586,6 @@
         <gpu:variable>
           <type>float</type>
           <name>radius_um</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>radius_um_120</name>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -684,64 +688,54 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
+          <name>origTimeInInitial</name>
+          <description>DEPRECATED - holds the original time_in_initial</description>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
           <name>velocity_ums</name>
-          <description>Velocity in um/s - mean diffusion distance obtained from MSD</description>
+          <description>DEPRECATED??? stores the value of r</description>
         </gpu:variable>
 
         <gpu:variable>
-          <type>float</type>
-          <name>precol_x</name>
-          <defaultValue>0</defaultValue>
+          <type>fvec2</type>
+          <name>precol</name>
         </gpu:variable>
         <gpu:variable>
-          <type>float</type>
-          <name>precol_y</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>precol_vx</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>precol_vy</name>
-          <defaultValue>0</defaultValue>
+          <type>fvec2</type>
+          <name>precol_v</name>
         </gpu:variable>
 
-        <gpu:variable>
-          <type>float</type>
-          <name>debugNanInfVelocity</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugNanInfLocation</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugDiv0</name>
-          <description>Identifies the function where a Div0 occured</description>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugNanInfValue</name>
-          <description>Identifies the function where a NaN or Inf occured</description>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>debugDragVel0At</name>
-          <defaultValue>-1</defaultValue>
-        </gpu:variable>
         
         <gpu:variable>
-          <type>float</type>
-          <name>debugNonFiniteBmAt</name>
-          <defaultValue>-1</defaultValue>
+          <type>fvec4</type>
+          <name>dbgSegC</name>
+          <description>anglebetween, dist_dp_normal, sin_angle, deltaS</description>
         </gpu:variable>
+        <gpu:variable>
+          <type>fvec4</type>
+          <name>dbgSegCdispl</name>
+          <description>Perp dist, corr needed, displ_x, displ_y</description>
+        </gpu:variable>
+        <gpu:variable>
+          <type>uvec3</type>
+          <name>becameAt</name>
+          <description>Became default at, became disabled at, reason for disaling</description>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>displacementSq</name>
+          <description>DEPRECATED - displacement squared</description>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>intendDispl</name>
+          <description>DEPRECATED - displacement squared</description>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        
       </memory>
       <functions>
         <!-- output_location_ev_default -->
@@ -1154,7 +1148,33 @@
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>true</gpu:RNG>
         </gpu:function>
-        
+
+        <!-- check displacement -->
+        <gpu:function>
+          <name>check_displacement_cd</name>
+          <currentState>collision_default</currentState>
+          <nextState>collision_default</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
+        <gpu:function>
+          <name>check_displacement_ci</name>
+          <currentState>collision_initial</currentState>
+          <nextState>collision_initial</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
+        <gpu:function>
+          <name>check_displacement_cs</name>
+          <currentState>collision_secretory</currentState>
+          <nextState>collision_secretory</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
+        <gpu:function>
+          <name>check_displacement_cc</name>
+          <currentState>collision_ciliary</currentState>
+          <nextState>collision_ciliary</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
+
         <!-- reset state in preparation to execute the next simulation step -->
         <!-- reset_state -->
         <gpu:function>
@@ -1168,25 +1188,90 @@
           <name>reset_state_collision_default</name>
           <currentState>collision_default</currentState>
           <nextState>default</nextState>
-          <gpu:reallocate>true</gpu:reallocate>
+          <condition>
+            <lhs><agentVariable>displacementSq</agentVariable></lhs>
+            <operator>&lt;=</operator>
+            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
           <name>reset_state_collision_initial</name>
           <currentState>collision_initial</currentState>
           <nextState>default</nextState>
+          <condition>
+            <lhs><agentVariable>displacementSq</agentVariable></lhs>
+            <operator>&lt;=</operator>
+            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+          </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
           <name>reset_state_collision_secretory</name>
           <currentState>collision_secretory</currentState>
           <nextState>default</nextState>
-          <gpu:reallocate>true</gpu:reallocate>
+          <condition>
+            <lhs><agentVariable>displacementSq</agentVariable></lhs>
+            <operator>&lt;=</operator>
+            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
           <name>reset_state_collision_ciliary</name>
           <currentState>collision_ciliary</currentState>
           <nextState>default</nextState>
-          <gpu:reallocate>true</gpu:reallocate>
+          <condition>
+            <lhs><agentVariable>displacementSq</agentVariable></lhs>
+            <operator>&lt;=</operator>
+            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
+        <!-- DISABLE EVs-->
+        <gpu:function>
+          <name>disable_EV_cd</name>
+          <currentState>collision_default</currentState>
+          <nextState>disabled</nextState>
+          <condition>
+            <lhs><agentVariable>displacementSq</agentVariable></lhs>
+            <operator>&gt;</operator>
+            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
+        <gpu:function>
+          <name>disable_EV_ci</name>
+          <currentState>collision_initial</currentState>
+          <nextState>disabled</nextState>
+          <condition>
+            <lhs><agentVariable>displacementSq</agentVariable></lhs>
+            <operator>&gt;</operator>
+            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
+        <gpu:function>
+          <name>disable_EV_cs</name>
+          <currentState>collision_secretory</currentState>
+          <nextState>disabled</nextState>
+          <condition>
+            <lhs><agentVariable>displacementSq</agentVariable></lhs>
+            <operator>&gt;</operator>
+            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
+        <gpu:function>
+          <name>disable_EV_cc</name>
+          <currentState>collision_ciliary</currentState>
+          <nextState>disabled</nextState>
+          <condition>
+            <lhs><agentVariable>displacementSq</agentVariable></lhs>
+            <operator>&gt;</operator>
+            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <!-- reset_state_initial -->
         <gpu:function>
@@ -1251,9 +1336,32 @@
         <gpu:function>
           <name>ev_initial_apoptosis</name>
           <currentState>initial</currentState>
-          <nextState>initial</nextState>
-          <gpu:reallocate>true</gpu:reallocate>
+          <nextState>disabled</nextState>
+          <condition>
+            <lhs><agentVariable>time_in_initial_state</agentVariable></lhs>
+            <operator>&gt;</operator>
+            <rhs><agentVariable>apoptosis_timer</agentVariable></rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
 	        <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+        <gpu:function>
+          <name>is_OOB</name>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <gpu:globalCondition>
+            <lhs>
+              <value>(iteration % 30000)</value>
+            </lhs>
+            <operator>==</operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          <gpu:reallocate>true</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
         </gpu:function>
       </functions>
       
@@ -1275,6 +1383,9 @@
         </gpu:state>
         <gpu:state>
           <name>initial</name>
+        </gpu:state>
+        <gpu:state>
+          <name>disabled</name>
         </gpu:state>
         <initialState>initial</initialState>
       </states>
@@ -1384,56 +1495,7 @@
       </gpu:partitioningSpatial>
       <gpu:bufferSize>131072</gpu:bufferSize>
     </gpu:message>
-    <!-- location_ev_bounced 
-      <gpu:message>
-        <name>location_ev_bounced</name>
-        <variables>
-          <gpu:variable>
-            <type>unsigned int</type>
-            <name>id</name>
-          </gpu:variable>
-          <gpu:variable>
-            <type>float</type>
-            <name>x</name>
-          </gpu:variable>
-          <gpu:variable>
-            <type>float</type>
-            <name>y</name>
-          </gpu:variable>
-          <gpu:variable>
-            <type>float</type>
-            <name>z</name>
-          </gpu:variable>
-          <gpu:variable>
-            <type>float</type>
-            <name>radius_um</name>
-          </gpu:variable>
-          <gpu:variable>
-            <type>float</type>
-            <name>mass_ag</name>
-            <description>Mass of the vesicle in attograms</description>
-          </gpu:variable>
-          <gpu:variable>
-            <type>float</type>
-            <name>vx</name>
-          </gpu:variable>
-          <gpu:variable>
-            <type>float</type>
-            <name>vy</name>
-          </gpu:variable>
-        </variables>
-        <gpu:partitioningSpatial>
-          <gpu:radius>2</gpu:radius>
-          <gpu:xmin>0</gpu:xmin>
-          <gpu:xmax>3000</gpu:xmax>
-          <gpu:ymin>0</gpu:ymin>
-          <gpu:ymax>4000</gpu:ymax>
-          <gpu:zmin>0</gpu:zmin>
-          <gpu:zmax>2</gpu:zmax>
-        </gpu:partitioningSpatial>
-        <gpu:bufferSize>131072</gpu:bufferSize>
-      </gpu:message>
-    -->
+    
     <!-- secretory cell_location -->
     <gpu:message>
       <name>secretory_cell_location</name>
@@ -1960,6 +2022,20 @@
     </layer>
     <layer>
       <gpu:layerFunction>
+        <name>check_displacement_cs</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>check_displacement_cc</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>check_displacement_ci</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>check_displacement_cd</name>
+      </gpu:layerFunction>
+    </layer>
+    <layer>
+      <gpu:layerFunction>
         <!-- EVs in default state do not change state -->
         <name>reset_state</name>
       </gpu:layerFunction>
@@ -1986,11 +2062,24 @@
     </layer>
     <layer>
       <gpu:layerFunction>
+        <name>disable_EV_cs</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>disable_EV_cc</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>disable_EV_cd</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>disable_EV_ci</name>
+      </gpu:layerFunction>
+    </layer>
+    <layer>
+      <gpu:layerFunction>
         <!-- EVs in initial state change to default state -->
         <name>initial_to_default</name>
       </gpu:layerFunction>
     </layer>
-
     <layer>
       <gpu:layerFunction><name>moveDefault</name></gpu:layerFunction> <!-- ID 2000 -->
       <gpu:layerFunction><name>moveInitial</name></gpu:layerFunction>
