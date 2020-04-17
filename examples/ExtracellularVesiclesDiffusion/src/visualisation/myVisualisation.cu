@@ -329,7 +329,7 @@ void runVisualisation(){
 
 		gpuErrchk(cudaGraphicsUnmapResources(1, &CGRciliary, 0));
 	}
-
+	printf("There are %d initial, and %d default EVs\n", get_agent_EV_initial_count(), get_agent_EV_default_count());
 	// start rendering mainloop
 	glutMainLoop();
 }
@@ -549,7 +549,6 @@ void display()
 		glDrawArrays(GL_POINTS, 0, get_agent_EV_collision_default_count());
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
-	checkGLError("display 1c");
 	// Walls
 	if (display_walls) {
 		if (get_agent_SecretoryCell_s_default_count() > 0) {
@@ -573,7 +572,6 @@ void display()
 			glDrawArrays(GL_LINES, 0, 4 * get_agent_SecretoryCell_s_default_count());
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
-		checkGLError("display 2");
 
 		if (get_agent_CiliaryCell_c_default_count() > 0) {
 			if (thick_walls) {
@@ -594,7 +592,6 @@ void display()
 			glDrawArrays(GL_LINES, 0, 4 * get_agent_CiliaryCell_c_default_count());
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
-		checkGLError("display 3");
 	}
 	//CUDA stop timing
 	cudaEventRecord(stop);
@@ -615,7 +612,6 @@ void display()
 	else{
 		frame_count++;
 	}
-	checkGLError("display 4");
 
 	glutSwapBuffers();
 	glutPostRedisplay();
