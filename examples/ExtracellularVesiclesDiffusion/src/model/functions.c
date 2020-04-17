@@ -270,7 +270,7 @@ __FLAME_GPU_FUNC__ int ev_default_apoptosis(xmachine_memory_EV* agent, RNG_rand4
 __FLAME_GPU_FUNC__ int ev_initial_apoptosis(xmachine_memory_EV* agent){
 	agent->becameAt.y = iteration;
 	agent->becameAt.z = 5;
-	return 0;
+	return 1;
 }
 
 

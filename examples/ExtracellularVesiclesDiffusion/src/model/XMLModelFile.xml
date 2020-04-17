@@ -1356,7 +1356,7 @@
             <operator>&gt;</operator>
             <rhs><agentVariable>apoptosis_timer</agentVariable></rhs>
           </condition>
-          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:reallocate>true</gpu:reallocate>
 	        <gpu:RNG>false</gpu:RNG>
         </gpu:function>
         <gpu:function>
