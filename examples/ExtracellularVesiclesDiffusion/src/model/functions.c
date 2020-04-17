@@ -293,9 +293,7 @@ __FLAME_GPU_FUNC__ int brownian_movement_1d(xmachine_memory_EV* agent, RNG_rand4
 
 __FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
 	float theta;
-	float u = sqrtf(-2*log(rnd<CONTINUOUS>(rand48)));
-	agent->bm_r.x = u < -1.0f ? -1.0f : u > 1.0f ? 1.0f : u;
-	//agent->bm_r.x = sqrtf(-2*log(rnd<CONTINUOUS>(rand48)));
+	agent->bm_r.x = sqrtf(-2*log(rnd<CONTINUOUS>(rand48)));
 	agent->bm_r.y = agent->bm_r.x * agent->mdd125 * bm_factor;
 	theta = 2 * rnd<CONTINUOUS>(rand48);
 	
@@ -1128,8 +1126,7 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 			// with parameters: mean = 0 and std = MDD@0.1sec / 1.25, produces the
 			// expected mean displacement for the corresponding diffusion rate
 			float mdd125 = MDD_01s * 0.8;
-			float u = sqrtf(-2*log(rnd<CONTINUOUS>(rand48)));
-			float bm_rx = u < -1.0f ? -1.0f : u > 1.0f ? 1.0f : u;
+			float bm_rx = sqrtf(-2*log(rnd<CONTINUOUS>(rand48)));
 			float bm_ry =  bm_rx * mdd125 * bm_factor;
 			// decompose velocity
 			float vx = bm_ry * secretoryCell->unit_normal_x;
