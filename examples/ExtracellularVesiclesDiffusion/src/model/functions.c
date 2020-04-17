@@ -317,6 +317,15 @@ __device__ void ev_reset(xmachine_memory_EV* agent){
 	agent->closest_ev_default_distance = 100;
 	agent->closest_ev_initial_id = 0;
 	agent->closest_ev_initial_distance = 100;
+	agent->intendDisplSq = 0;
+	agent->dbgSegC.x = 0;
+	agent->dbgSegC.y = 0;
+	agent->dbgSegC.z = 0;
+	agent->dbgSegC.w = 0;
+	agent->dbgSegCdispl.x = 0;
+	agent->dbgSegCdispl.y = 0;
+	agent->dbgSegCdispl.z = 0;
+	agent->dbgSegCdispl.w = 0;
 }
 
 __device__ float displacement_sq(xmachine_memory_EV* ag){
@@ -778,7 +787,7 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 	agent->dbgSegCdispl.y = vlength(displ.x, displ.y);// <- same value as deltaS?
 	agent->dbgSegCdispl.z = displ.x;
 	agent->dbgSegCdispl.w = displ.y;
-	agent->intendDispl = displacement_sq(agent);
+	agent->intendDisplSq = displacement_sq(agent);
 	// 2.3. update position by subtracting the displacement
 	agent->x -= displ.x;
 	agent->y -= displ.y;
@@ -937,9 +946,6 @@ __FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_default(xmachine_memory_EV
 	while(message){
 		if(agent->closest_ev_default_id == message->id){
 			// solve the collision for both agents
-			float2 ev1_loc = make_float2(agent->x, agent->y);
-			float2 ev2_loc = make_float2(message->x, message->y);
-
 			float2 ev1_velo = make_float2(agent->vx, agent->vy);
 			float2 ev2_velo = make_float2(message->vx, message->vy);
 			float2 distance = make_float2(agent->x - message->x, agent->y - message->y);
@@ -953,20 +959,16 @@ __FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_default(xmachine_memory_EV
 
 			// move particles so that they just touch
 			// If both normal components match, the value of pcd.vrel would be zero
-			// float min_distance = agent->radius_um + message->radius_um;
-			//float distance_length = vlength(distance.x, distance.y);
-			float overlap = (agent->radius_um + message->radius_um) - vlength(distance.x, distance.y);
 			float2 normal_velo_subtracted = float2_sub(normal_velocity1, normal_velocity2);
 			float vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
 			if (vrel == 0 || vrel < 1e-8) {
 				vrel = vlength(ev1_velo.x, ev1_velo.y);	
 			}
-			float correctionFactor = overlap / vrel;
-			float2 ev1_new_loc = add_scaled(ev1_loc, normal_velocity1, -correctionFactor);
-			float2 ev2_new_loc = add_scaled(ev2_loc, normal_velocity2, -correctionFactor);			
+			// correctionFactor = overlap / vrel
+			float correctionFactor = (agent->radius_um + message->radius_um) - vlength(distance.x, distance.y) / vrel;
+			float2 ev1_new_loc = add_scaled(make_float2(agent->x, agent->y), normal_velocity1, -correctionFactor);
+			float2 ev2_new_loc = add_scaled(make_float2(message->x, message->y), normal_velocity2, -correctionFactor);			
 			// normal velocity components after the impact
-			//float m1 = agent->mass_ag;
-			//float m2 = message->ev2_mass_ag;
 			float u1 = projection(normal_velocity1.x, normal_velocity1.y, distance.x, distance.y);
 			float u2 = projection(normal_velocity2.x, normal_velocity2.y, distance.x, distance.y);
 			float v1 = ((agent->mass_ag - message->mass_ag) * u1 + 2 * message->mass_ag * u2) / (agent->mass_ag + message->mass_ag);
@@ -1023,64 +1025,56 @@ __FLAME_GPU_FUNC__ int post_collision_update_ev_default_ev_default(xmachine_memo
 		return 0;
 }
 
-__device__ float4 solve_collision_ev_default_ev_initial(
-		float2 ev1_loc, float2 ev1_velo, float ev1_mass_ag,
-		float2 ev2_loc, float2 ev2_velo, float ev2_mass_ag, 
-		float min_distance, float2 dist, float dist_length) {
-
-	// normal velocity vectors just before the impact
-	float2 normal_velocity1 = float2_project(ev1_velo, dist);
-	float2 normal_velocity2 = float2_project(ev2_velo, dist);
-	// tangential velocity vector, not affected by the collision resolution
-	float2 tangent_velocity1 = float2_sub(ev1_velo, normal_velocity1);
-
-	// The EV in default state must be relocated so that it just touches the EV in initial state
-	// To do so, we correct it's position by the overlap distance
-	// EV_default's position is corrected using it's velocity before collision
-	
-	// overlap / original velocity before collision
-	float correctionFactor = (min_distance - dist_length) / vlength(ev1_velo.x, ev1_velo.y);
-
-	// If the EVs are in opposite direction, the correction must subtract from the displacement
-	if(ev1_velo.x * ev2_velo.x + ev1_velo.y * ev2_velo.y < 0){
-		correctionFactor = -correctionFactor;
-	}
-	//float2 new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, pcdi.correctionFactors.y);
-	//new_values.xy 
-	float2 new_xy = add_scaled(ev1_loc, normal_velocity1, correctionFactor);
-	//pcdi.correctionApplied = float2_scale(normal_velocity1, correctionFactor);
-
-	// normal velocity components after the impact
-	float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);
-	float u2 = projection(normal_velocity2.x, normal_velocity2.y, dist.x, dist.y);
-	float v1 = ((ev1_mass_ag - ev2_mass_ag)*u1 + 2 * ev2_mass_ag*u2) / (ev1_mass_ag + ev2_mass_ag);
-	normal_velocity1 = parallel(dist.x, dist.y, v1);
-	float2 new_vxvy = float2_add(normal_velocity1, tangent_velocity1);
-	return make_float4(new_xy.x, new_xy.y, new_vxvy.x, new_vxvy.y);
-}
-
 __FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_initial(xmachine_memory_EV* agent,
 	xmachine_message_location_ev_initial_list* location_messages, 
 	xmachine_message_location_ev_initial_PBM* partition_matrix){
 
 	xmachine_message_location_ev_initial* message = get_first_location_ev_initial_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 	while(message){
+		// The EV in default state must be relocated so that it just touches the EV in initial state
+		// To do so, we correct it's position by the overlap distance
+		// EV_default's position is corrected using it's velocity before collision
 		if(agent->closest_ev_initial_id == message->id){
-			float2 d = make_float2(message->x, message->y);
-			float4 new_values = solve_collision_ev_default_ev_initial(make_float2(agent->x, agent->y), 
-				make_float2(agent->vx, agent->vy), agent->mass_ag, 
-				make_float2(message->x, message->y),
-				make_float2(message->vx, message->vy), message->mass_ag, 
-				agent->radius_um + message->radius_um, d, vlength(d.x, d.y));
-
 			agent->precol.x = agent->x;
 			agent->precol.y = agent->y;
 			agent->precol_v.x = agent->vx;
 			agent->precol_v.y = agent->vy;
+			agent->intendDisplSq = displacement_sq(agent);
+
+			float2 agent_vel = make_float2(agent->vx, agent->vy);
+			float2 dist = make_float2(agent->x - message->x, agent->y - message->y);
+			// normal velocity vectors just before the impact
+			float2 normal_velocity1 = float2_project(agent_vel, dist);
+			float2 normal_velocity2 = float2_project(make_float2(message->vx, message->vy), dist);
+			// tangential velocity vector, not affected by the collision resolution
+			float2 tangent_velocity1 = float2_sub(agent_vel, normal_velocity1);
+
+			// overlap / original velocity before collision
+			float correctionFactor = (((agent->radius_um + message->radius_um) - vlength(dist.x, dist.y))
+										/ vlength(agent->vx, agent->vy));
+
+			// If the EVs displace in opposite direction, the correction must subtract from the displacement
+			if(dotprod(agent->vx, agent->vy, message->vx,  message->vy) < 0){
+				correctionFactor = -correctionFactor;
+			}
+			agent->dbgSegCdispl.x = vlength(dist.x, dist.y);
+			agent->dbgSegCdispl.y = correctionFactor;
+			//pcdi.correctionApplied = float2_scale(normal_velocity1, correctionFactor);
+			float2 new_values = add_scaled(make_float2(agent->x, agent->y), normal_velocity1, correctionFactor);
+			agent->dbgSegCdispl.z = normal_velocity1.x * correctionFactor;
+			agent->dbgSegCdispl.w = normal_velocity1.y * correctionFactor;
 			agent->x = new_values.x;
 			agent->y = new_values.y;
-			agent->vx = new_values.z;
-			agent->vy = new_values.w;
+
+			// normal velocity components after the impact
+			float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);
+			float u2 = projection(normal_velocity2.x, normal_velocity2.y, dist.x, dist.y);
+			float v1 = (((agent->mass_ag - message->mass_ag) * u1 + 2 * message->mass_ag * u2)
+						/ (agent->mass_ag + message->mass_ag));
+			normal_velocity1 = parallel(dist.x, dist.y, v1);
+			new_values = float2_add(normal_velocity1, tangent_velocity1);
+			agent->vx = new_values.x;
+			agent->vy = new_values.y;
 		}
 		message = get_next_location_ev_initial_message(message, location_messages, partition_matrix);
 	}

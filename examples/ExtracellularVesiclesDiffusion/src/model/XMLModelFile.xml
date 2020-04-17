@@ -726,13 +726,13 @@
         <gpu:variable>
           <type>float</type>
           <name>displacementSq</name>
-          <description>DEPRECATED - displacement squared</description>
+          <description>displacement squared</description>
           <defaultValue>0</defaultValue>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>intendDispl</name>
-          <description>DEPRECATED - displacement squared</description>
+          <name>intendDisplSq</name>
+          <description>DEPRECATED - intended displacement squared</description>
           <defaultValue>0</defaultValue>
         </gpu:variable>
         
@@ -1202,7 +1202,14 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&lt;=</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+            <!-- Special relaxed restriction for valid displacement -->
+            <rhs>
+              <condition>
+                <lhs><agentVariable>radius_um_sq</agentVariable></lhs>
+                <operator>*</operator>
+                <rhs><value>1.5</value></rhs>
+              </condition>
+            </rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1247,7 +1254,14 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&gt;</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+            <!-- Special relaxed restriction for valid displacement -->
+            <rhs>
+              <condition>
+                <lhs><agentVariable>radius_um_sq</agentVariable></lhs>
+                <operator>*</operator>
+                <rhs><value>1.5</value></rhs>
+              </condition>
+            </rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
