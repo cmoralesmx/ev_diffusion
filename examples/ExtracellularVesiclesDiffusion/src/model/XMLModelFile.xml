@@ -593,6 +593,10 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
+          <name>radius_um_150sq</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
           <name>diffusion_rate_um</name>
         </gpu:variable>
         <gpu:variable>
@@ -1191,7 +1195,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&lt;=</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1202,14 +1206,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&lt;=</operator>
-            <!-- Special relaxed restriction for valid displacement -->
-            <rhs>
-              <condition>
-                <lhs><agentVariable>radius_um_sq</agentVariable></lhs>
-                <operator>*</operator>
-                <rhs><value>1.5</value></rhs>
-              </condition>
-            </rhs>
+            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1217,11 +1214,11 @@
           <name>reset_state_collision_secretory</name>
           <currentState>collision_secretory</currentState>
           <nextState>default</nextState>
-          <condition>
-            <lhs><agentVariable>displacementSq</agentVariable></lhs>
-            <operator>&lt;=</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
-          </condition>
+            <condition>
+              <lhs><agentVariable>displacementSq</agentVariable></lhs>
+              <operator>&lt;=</operator>
+              <rhs><agentVariable>intendDisplSq</agentVariable></rhs>
+            </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
@@ -1231,7 +1228,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&lt;=</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+            <rhs><agentVariable>intendDisplSq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1243,7 +1240,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&gt;</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1254,14 +1251,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&gt;</operator>
-            <!-- Special relaxed restriction for valid displacement -->
-            <rhs>
-              <condition>
-                <lhs><agentVariable>radius_um_sq</agentVariable></lhs>
-                <operator>*</operator>
-                <rhs><value>1.5</value></rhs>
-              </condition>
-            </rhs>
+            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1272,7 +1262,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&gt;</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+            <rhs><agentVariable>intendDisplSq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1283,7 +1273,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&gt;</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+            <rhs><agentVariable>intendDisplSq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>

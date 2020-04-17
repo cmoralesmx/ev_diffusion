@@ -1038,9 +1038,10 @@ __FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_initial(xmachine_memory_EV
 			agent->precol_v.x = agent->vx;
 			agent->precol_v.y = agent->vy;
 			agent->intendDisplSq = displacement_sq(agent);
-
+			float2 new_values;
+			
 			float2 agent_vel = make_float2(agent->vx, agent->vy);
-			float2 dist = make_float2(agent->x - message->x, agent->y - message->y);
+			float2 dist = make_float2(message->x - agent->x, message->y - agent->y);
 			// normal velocity vectors just before the impact
 			float2 normal_velocity1 = float2_project(agent_vel, dist);
 			float2 normal_velocity2 = float2_project(make_float2(message->vx, message->vy), dist);
@@ -1048,22 +1049,25 @@ __FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_initial(xmachine_memory_EV
 			float2 tangent_velocity1 = float2_sub(agent_vel, normal_velocity1);
 
 			// overlap / original velocity before collision
-			float correctionFactor = (((agent->radius_um + message->radius_um) - vlength(dist.x, dist.y))
-										/ vlength(agent->vx, agent->vy));
-
-			// If the EVs displace in opposite direction, the correction must subtract from the displacement
-			if(dotprod(agent->vx, agent->vy, message->vx,  message->vy) < 0){
-				correctionFactor = -correctionFactor;
-			}
 			agent->dbgSegCdispl.x = vlength(dist.x, dist.y);
-			agent->dbgSegCdispl.y = correctionFactor;
-			//pcdi.correctionApplied = float2_scale(normal_velocity1, correctionFactor);
-			float2 new_values = add_scaled(make_float2(agent->x, agent->y), normal_velocity1, correctionFactor);
-			agent->dbgSegCdispl.z = normal_velocity1.x * correctionFactor;
-			agent->dbgSegCdispl.w = normal_velocity1.y * correctionFactor;
-			agent->x = new_values.x;
-			agent->y = new_values.y;
-
+			agent->dbgSegC.z = vlength(agent->vx, agent->vy);
+			// if the overlap is larger than the agent's radius it goes back to the previous location
+			agent->dbgSegC.w = (agent->radius_um + message->radius_um) - agent->dbgSegCdispl.x;
+			if(agent->dbgSegC.w < agent->radius_um){
+				float correctionFactor = agent->dbgSegC.w / agent->dbgSegC.z;
+				// If the EVs displace in opposite direction, the correction must subtract from the displacement
+				if(dotprod(agent->vx, agent->vy, message->vx,  message->vy) < 0){
+					correctionFactor = -correctionFactor;
+				}
+				agent->dbgSegCdispl.y = correctionFactor;
+				//pcdi.correctionApplied = float2_scale(normal_velocity1, correctionFactor);
+				new_values = add_scaled(make_float2(agent->x, agent->y), normal_velocity1, correctionFactor);
+				agent->dbgSegCdispl.z = normal_velocity1.x * correctionFactor;
+				agent->dbgSegCdispl.w = normal_velocity1.y * correctionFactor;
+			} else {
+				agent->x = agent->x_1;
+				agent->y = agent->y_1;
+			}
 			// normal velocity components after the impact
 			float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);
 			float u2 = projection(normal_velocity2.x, normal_velocity2.y, dist.x, dist.y);
@@ -1167,7 +1171,7 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 			// EV_secretoryCell_list, id, x, y, z, x_1, y_1, vx, vy, bm_vx, bm_vy, bm_r, last_bm,
 			add_EV_agent(EVs, id, x, y, 0, x - vx * dt, y - vy * dt, vx, vy, 0, 0, fvec2(bm_rx, bm_ry), 0,
 				// mass_ag, radius_um, radius_um^2
-				mass_ag, radius_um, radius_um * radius_um, 
+				mass_ag, radius_um, radius_um * radius_um, (radius_um * 1.5) * (radius_um * 1.5),
 				// diffusion_rate_um, MDD_01s, mdd125
 				diffusion_rate_ums, MDD_01s, mdd125,
 				// closest: ev_d_id, d_dist, ev_i_id, i_dist, ev_b_id, b_dist
