@@ -1236,7 +1236,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&gt;</operator>
-            <rhs><agentVariable>intendDisplSq</agentVariable></rhs>
+            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1247,7 +1247,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&gt;</operator>
-            <rhs><agentVariable>intendDisplSq</agentVariable></rhs>
+            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
