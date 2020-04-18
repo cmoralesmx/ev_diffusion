@@ -1149,25 +1149,25 @@
 
         <!-- check displacement -->
         <gpu:function>
-          <name>check_displacement_cd</name>
+          <name>compute_displacement_cd</name>
           <currentState>collision_default</currentState>
           <nextState>collision_default</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
-          <name>check_displacement_ci</name>
+          <name>compute_displacement_ci</name>
           <currentState>collision_initial</currentState>
           <nextState>collision_initial</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
-          <name>check_displacement_cs</name>
+          <name>compute_displacement_cs</name>
           <currentState>collision_secretory</currentState>
           <nextState>collision_secretory</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
-          <name>check_displacement_cc</name>
+          <name>compute_displacement_cc</name>
           <currentState>collision_ciliary</currentState>
           <nextState>collision_ciliary</nextState>
           <gpu:reallocate>false</gpu:reallocate>

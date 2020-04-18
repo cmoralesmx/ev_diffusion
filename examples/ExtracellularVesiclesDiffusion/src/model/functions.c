@@ -346,19 +346,19 @@ __FLAME_GPU_FUNC__ int reset_state_initial(xmachine_memory_EV* agent) {
 	return 0;
 }
 
-__FLAME_GPU_FUNC__ int check_displacement_cs(xmachine_memory_EV* agent){
+__FLAME_GPU_FUNC__ int compute_displacement_cs(xmachine_memory_EV* agent){
 	agent->displacementSq = displacement_sq(agent);
 	return 0;
 }
-__FLAME_GPU_FUNC__ int check_displacement_cc(xmachine_memory_EV* agent){
+__FLAME_GPU_FUNC__ int compute_displacement_cc(xmachine_memory_EV* agent){
 	agent->displacementSq = displacement_sq(agent);
 	return 0;
 }
-__FLAME_GPU_FUNC__ int check_displacement_cd(xmachine_memory_EV* agent){
+__FLAME_GPU_FUNC__ int compute_displacement_cd(xmachine_memory_EV* agent){
 	agent->displacementSq = displacement_sq(agent);
 	return 0;
 }
-__FLAME_GPU_FUNC__ int check_displacement_ci(xmachine_memory_EV* agent){
+__FLAME_GPU_FUNC__ int compute_displacement_ci(xmachine_memory_EV* agent){
 	agent->displacementSq = displacement_sq(agent);
 	return 0;
 }
