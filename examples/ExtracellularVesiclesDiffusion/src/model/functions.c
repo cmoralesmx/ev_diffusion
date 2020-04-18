@@ -315,7 +315,6 @@ __device__ void ev_reset(xmachine_memory_EV* agent){
 	agent->closest_ev_default_distance = 100;
 	agent->closest_ev_initial_id = 0;
 	agent->closest_ev_initial_distance = 100;
-	agent->intendDisplSq = 0;
 	agent->dbgSegC.x = 0;
 	agent->dbgSegC.y = 0;
 	agent->dbgSegC.z = 0;
@@ -785,7 +784,6 @@ __device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_di
 	agent->dbgSegCdispl.y = vlength(displ.x, displ.y);// <- same value as deltaS?
 	agent->dbgSegCdispl.z = displ.x;
 	agent->dbgSegCdispl.w = displ.y;
-	agent->intendDisplSq = displacement_sq(agent);
 	// 2.3. update position by subtracting the displacement
 	agent->x -= displ.x;
 	agent->y -= displ.y;
@@ -1037,7 +1035,6 @@ __FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_initial(xmachine_memory_EV
 			agent->precol.y = agent->y;
 			agent->precol_v.x = agent->vx;
 			agent->precol_v.y = agent->vy;
-			agent->intendDisplSq = displacement_sq(agent);
 			float2 new_values;
 			
 			float2 agent_vel = make_float2(agent->vx, agent->vy);
@@ -1106,20 +1103,17 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 			// therefore, the radius must be in the range 40-160 nm
 			float radius_nm = (rand_i % max_ev_radius) + min_ev_radius;
 			float radius_um = (radius_nm) / 1000; // faster than doing /1000
-			float radius_m = radius_um / 1E6;
 
 			// compute the volume
-			//float radius_nm_3 = radius_nm * radius_nm * radius_nm;
 			//float volume = const_pi_4div3 * radius_nm_3;
 			//float mass_g = const_mass_per_volume_unit * volume;
-			float mass_g = const_mass_p_vol_u_x_4div3_pi * radius_nm * radius_nm * radius_nm;
-			float mass_ag = mass_g / 1e-18;
+			float mass_ag = (const_mass_p_vol_u_x_4div3_pi * radius_nm * radius_nm * radius_nm) / 1e-18;
 
 			// to convert:
 			// N square metres to square micrometre: multiply N * 1e+12
 			// N metres to micrometres: multiply N * 1e+6
 			// Here D is in squared meters/second
-			float D_ms = const_Boltzmann_x_Temp_K / (const_6_pi_dynamic_viscosity * radius_m);
+			float D_ms = const_Boltzmann_x_Temp_K / (const_6_pi_dynamic_viscosity * (radius_um / 1E6));
 			// A more usual units for D is cm^2/s^-1, however, we use um^2 / sec
 			float diffusion_rate_ums = D_ms * 1e+12; // square micrometre
 			// Mean Squared Displacement (MSD) x^2 = 2 * dof * D * t
@@ -1169,7 +1163,7 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 			}
 
 			// EV_secretoryCell_list, id, x, y, z, x_1, y_1, vx, vy, bm_vx, bm_vy, bm_r, last_bm,
-			add_EV_agent(EVs, id, x, y, 0, x - vx * dt, y - vy * dt, vx, vy, 0, 0, fvec2(bm_rx, bm_ry), 0,
+			add_EV_agent(EVs, id, x, y, 0, x - vx, y - vy, vx, vy, 0, 0, fvec2(bm_rx, bm_ry), 0,
 				// mass_ag, radius_um, radius_um^2
 				mass_ag, radius_um, radius_um * radius_um, (radius_um * 1.5) * (radius_um * 1.5),
 				// diffusion_rate_um, MDD_01s, mdd125
@@ -1185,7 +1179,8 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 				// dbgSegC
 				fvec4(0,0,0,0),
 				fvec4(0.0f, 0.0f, 0.0f, 0.0f),
-				uvec3(0,0,0), 0.0f, 0.0f
+
+				uvec3(0,0,0), 0.0f
 				);
 		}
 	}

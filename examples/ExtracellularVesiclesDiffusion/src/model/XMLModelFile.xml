@@ -733,12 +733,6 @@
           <description>displacement squared</description>
           <defaultValue>0</defaultValue>
         </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>intendDisplSq</name>
-          <description>DEPRECATED - intended displacement squared</description>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
         
       </memory>
       <functions>
@@ -1192,44 +1186,24 @@
           <name>reset_state_collision_default</name>
           <currentState>collision_default</currentState>
           <nextState>default</nextState>
-          <condition>
-            <lhs><agentVariable>displacementSq</agentVariable></lhs>
-            <operator>&lt;=</operator>
-            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
-          </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
           <name>reset_state_collision_initial</name>
           <currentState>collision_initial</currentState>
           <nextState>default</nextState>
-          <condition>
-            <lhs><agentVariable>displacementSq</agentVariable></lhs>
-            <operator>&lt;=</operator>
-            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
-          </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
           <name>reset_state_collision_secretory</name>
           <currentState>collision_secretory</currentState>
           <nextState>default</nextState>
-            <condition>
-              <lhs><agentVariable>displacementSq</agentVariable></lhs>
-              <operator>&lt;=</operator>
-              <rhs><agentVariable>intendDisplSq</agentVariable></rhs>
-            </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
           <name>reset_state_collision_ciliary</name>
           <currentState>collision_ciliary</currentState>
           <nextState>default</nextState>
-          <condition>
-            <lhs><agentVariable>displacementSq</agentVariable></lhs>
-            <operator>&lt;=</operator>
-            <rhs><agentVariable>intendDisplSq</agentVariable></rhs>
-          </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <!-- DISABLE EVs-->
