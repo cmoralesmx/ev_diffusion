@@ -243,10 +243,10 @@ __FLAME_GPU_FUNC__ int secretory_cell_initialization(xmachine_memory_SecretoryCe
 	if(rnd<CONTINUOUS>(rand48) <= 0.5){
 		// exosome-size range
 		cell->min_ev_radius = min_ev_radius;
-		cell->max_ev_radius = 120;
+		cell->max_ev_radius = threshold_ex_mv;
 	} else {
 		// microvesicles-size range
-		cell->min_ev_radius = 121;
+		cell->min_ev_radius = threshold_ex_mv;
 		cell->max_ev_radius = max_ev_radius;
 	}
 	return 0;

@@ -206,9 +206,14 @@
         <type>int</type>
         <name>max_ev_radius</name>
         <description>Largest EV radius possible in the system (must subtract the min_ev_radius value)</description>
-        <defaultValue>1000</defaultValue>
+        <defaultValue>500</defaultValue>
       </gpu:variable>
-      
+      <gpu:variable>
+        <type>int</type>
+        <name>threshold_ex_mv</name>
+        <description>Threshold between exosome and microvesicle size. Becomes the upper limit for exosomes, lower limit for MV</description>
+        <defaultValue>100</defaultValue>
+      </gpu:variable>
       <!-- dt - timestep of the model -->
       <gpu:variable>
         <type>float</type>
