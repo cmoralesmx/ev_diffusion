@@ -206,7 +206,7 @@
         <type>int</type>
         <name>max_ev_radius</name>
         <description>Largest EV radius possible in the system (must subtract the min_ev_radius value)</description>
-        <defaultValue>120</defaultValue>
+        <defaultValue>1000</defaultValue>
       </gpu:variable>
       
       <!-- dt - timestep of the model -->
@@ -362,6 +362,14 @@
           <name>last_ev_id</name>
           <defaultValue>0</defaultValue>
         </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>min_ev_radius</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>max_ev_radius</name>
+        </gpu:variable>
       </memory>
       <functions>
         <!-- output_secretory_cell_location -->
@@ -379,7 +387,14 @@
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
-        
+        <gpu:function>
+          <name>secretory_cell_initialization</name>
+          <description>Decides the ev size range to produce</description>
+          <currentState>s_initial</currentState>
+          <nextState>s_default</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>true</gpu:RNG>
+        </gpu:function>
         <!-- add new EVs -->
         <gpu:function>
           <name>secrete_ev</name>
@@ -409,9 +424,12 @@
       </functions>
       <states>
         <gpu:state>
+          <name>s_initial</name>
+        </gpu:state>
+        <gpu:state>
           <name>s_default</name>
         </gpu:state>
-        <initialState>s_default</initialState>
+        <initialState>s_initial</initialState>
       </states>
       <gpu:type>continuous</gpu:type>
       <gpu:bufferSize>131072</gpu:bufferSize>
