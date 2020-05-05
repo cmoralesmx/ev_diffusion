@@ -1721,6 +1721,12 @@
   <layers>
     <layer>
       <gpu:layerFunction>
+        <name>secretory_cell_initialization</name>
+      </gpu:layerFunction>
+    </layer>
+
+    <layer>
+      <gpu:layerFunction>
         <name>ev_default_apoptosis</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
