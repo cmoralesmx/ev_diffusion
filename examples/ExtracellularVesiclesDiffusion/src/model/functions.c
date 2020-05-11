@@ -238,17 +238,35 @@ __FLAME_GPU_INIT_FUNC__ void precompute_values() {
 	printf("Limits on x:[%.2f, %.2f], y:[%.2f, %.2f]\n", minmax.x, minmax.z, minmax.y, minmax.w);
 }
 
+/*
+
+*/
 __FLAME_GPU_FUNC__ int secretory_cell_initialization(xmachine_memory_SecretoryCell* cell, 
 	RNG_rand48* rand48){
-	if(rnd<CONTINUOUS>(rand48) <= 0.5){
-		// exosome-size range
-		cell->min_ev_radius = min_ev_radius;
-		cell->max_ev_radius = threshold_ex_mv;
-	} else {
-		// microvesicles-size range
-		cell->min_ev_radius = threshold_ex_mv;
-		cell->max_ev_radius = max_ev_radius;
-	}
+		if(cell->min_ev_radius == -1)
+		{
+			if(rnd<CONTINUOUS>(rand48) <= 0.5){
+				// exosome-size range
+				cell->min_ev_radius = min_ev_radius;
+				cell->max_ev_radius = threshold_ex_mv;
+			} else {
+				// microvesicles-size range
+				cell->min_ev_radius = threshold_ex_mv;
+				cell->max_ev_radius = max_ev_radius;
+			}
+		}
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int ev_initialization_biogenesis(xmachine_memory_EV* ev){
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int ev_initialization_default(xmachine_memory_EV* ev){
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int ev_initialization_disabled(xmachine_memory_EV* ev){
 	return 0;
 }
 
@@ -274,19 +292,6 @@ __FLAME_GPU_FUNC__ int ev_default_apoptosis(xmachine_memory_EV* agent, RNG_rand4
 	}
 	return 0;
 }
-
-/*
-	EVs in initial state have the 'time_in_initial_state' extended when colliding with
-	an EV in default state. However, very long extensions can lead to undefined behaviour.
-	To prevent this, the max extension allowed is 2x time in initial state.
-	Extensions longer than this value lead to apoptosis.
-*/
-__FLAME_GPU_FUNC__ int ev_initial_apoptosis(xmachine_memory_EV* agent){
-	agent->becameAt.y = iteration;
-	agent->becameAt.z = 5;
-	return 1;
-}
-
 
 /*
 	Uses the Box-Mueller transform to generate a pair of normally distributed random numbers
@@ -327,8 +332,8 @@ __device__ void ev_reset(xmachine_memory_EV* agent){
 	agent->closest_secretory_cell_distance = 100;
 	agent->closest_ev_default_id = 0;
 	agent->closest_ev_default_distance = 100;
-	agent->closest_ev_initial_id = 0;
-	agent->closest_ev_initial_distance = 100;
+	agent->closest_ev_biogenesis_id = 0;
+	agent->closest_ev_biogenesis_distance = 100;
 	agent->dbgSegC.x = 0;
 	agent->dbgSegC.y = 0;
 	agent->dbgSegC.z = 0;
@@ -355,7 +360,7 @@ __FLAME_GPU_FUNC__ int reset_state(xmachine_memory_EV* agent) {
 	return 0;
 }
 
-__FLAME_GPU_FUNC__ int reset_state_initial(xmachine_memory_EV* agent) {
+__FLAME_GPU_FUNC__ int reset_state_biogenesis(xmachine_memory_EV* agent) {
 	ev_reset(agent);
 	return 0;
 }
@@ -389,35 +394,48 @@ __FLAME_GPU_FUNC__ int reset_state_collision_default(xmachine_memory_EV* agent) 
 	ev_reset(agent);
 	return 0;
 }
-__FLAME_GPU_FUNC__ int reset_state_collision_initial(xmachine_memory_EV* agent) {
+__FLAME_GPU_FUNC__ int reset_state_collision_biogenesis(xmachine_memory_EV* agent) {
 	ev_reset(agent);
 	return 0;
 }
 // These should not die but stay disabled
 __FLAME_GPU_FUNC__ int disable_EV_cs(xmachine_memory_EV* agent) {
-	agent->becameAt.y = iteration;
-	agent->becameAt.z = 1;
+	agent->disabledAt = iteration;
+	agent->disabledReason = 1;
 	return 0;
 }
 __FLAME_GPU_FUNC__ int disable_EV_cc(xmachine_memory_EV* agent) {
-	agent->becameAt.y = iteration;
-	agent->becameAt.z = 2;
+	agent->disabledAt = iteration;
+	agent->disabledReason = 2;
 	return 0;
 }
 __FLAME_GPU_FUNC__ int disable_EV_cd(xmachine_memory_EV* agent) {
-	agent->becameAt.y = iteration;
-	agent->becameAt.z = 3;
+	agent->disabledAt = iteration;
+	agent->disabledReason = 3;
 	return 0;
 }
-__FLAME_GPU_FUNC__ int disable_EV_ci(xmachine_memory_EV* agent) {
-	agent->becameAt.y = iteration;
-	agent->becameAt.z = 4;
+__FLAME_GPU_FUNC__ int disable_EV_cb(xmachine_memory_EV* agent) {
+	agent->disabledAt = iteration;
+	agent->disabledReason = 4;
 	return 0;
 }
 
-__FLAME_GPU_FUNC__ int initial_to_default(xmachine_memory_EV* agent) {
+/*
+	EVs in biogenesis state have the 'time_in_biogenesis_state' extended when colliding with
+	an EV in default state. However, repeating this extensions several times
+	can lead to undefined behaviour.
+	To prevent this, the max extension allowed is teice the time in biogenesis state.
+	Extensions longer than this value lead to apoptosis.
+*/
+__FLAME_GPU_FUNC__ int ev_biogenesis_apoptosis(xmachine_memory_EV* agent){
+	agent->disabledAt = iteration;
+	agent->disabledReason = 5;
+	return 1;
+}
+
+__FLAME_GPU_FUNC__ int biogenesis_to_default(xmachine_memory_EV* agent) {
 	agent->apoptosis_timer = 0;
-	agent->becameAt.x = iteration;
+	agent->defaultAt = iteration;
 	return 0;
 }
 
@@ -440,7 +458,7 @@ __FLAME_GPU_FUNC__ int moveDefault(xmachine_memory_EV* agent){
 	agent->last_bm += dt;
     return 0;
 }
-__FLAME_GPU_FUNC__ int moveInitial(xmachine_memory_EV* agent) {
+__FLAME_GPU_FUNC__ int moveBiogenesis(xmachine_memory_EV* agent) {
 	moveEv(agent);
 	return 0;
 }
@@ -457,19 +475,12 @@ __FLAME_GPU_FUNC__ int output_location_ev_default(xmachine_memory_EV* agent, xma
 		agent->vx, agent->vy);
     return 0;
 }
-__FLAME_GPU_FUNC__ int output_location_ev_initial(xmachine_memory_EV* agent, xmachine_message_location_ev_initial_list* location_messages) {
-	add_location_ev_initial_message(location_messages, agent->id, agent->x, agent->y,
+__FLAME_GPU_FUNC__ int output_location_ev_biogenesis(xmachine_memory_EV* agent, xmachine_message_location_ev_biogenesis_list* location_messages) {
+	add_location_ev_biogenesis_message(location_messages, agent->id, agent->x, agent->y,
 			agent->z, agent->radius_um, agent->mass_ag, agent->vx, agent->vy);
 	return 0;
 }
-/*
-	__FLAME_GPU_FUNC__ int output_location_ev_bounced(xmachine_memory_EV* agent, 
-		xmachine_message_location_ev_bounced_list* location_messages) {
-		add_location_ev_bounced_message(location_messages, agent->id, agent->x, agent->y,
-				agent->z, agent->radius_um, agent->mass_ag, agent->vx, agent->vy);
-		return 0;
-	}
-*/
+
 __FLAME_GPU_FUNC__ int output_ciliary_cell_location(xmachine_memory_CiliaryCell* agent, xmachine_message_ciliary_cell_location_list* location_messages) {
 
 	add_ciliary_cell_location_message(location_messages, agent->id, agent->x, agent->y, 0,
@@ -687,16 +698,16 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_default(xmachine_memory_EV* 
 	return 0;
 }
 
-__FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* agent, 
-	xmachine_message_location_ev_initial_list* location_messages, 
-	xmachine_message_location_ev_initial_PBM* partition_matrix){
+__FLAME_GPU_FUNC__ int test_collision_ev_default_ev_biogenesis(xmachine_memory_EV* agent, 
+	xmachine_message_location_ev_biogenesis_list* location_messages, 
+	xmachine_message_location_ev_biogenesis_PBM* partition_matrix){
 	
 	float distance;
 	float max_overlap = 0, overlap;
 
 	//float4 new_values;
 
-	xmachine_message_location_ev_initial* message = get_first_location_ev_initial_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
+	xmachine_message_location_ev_biogenesis* message = get_first_location_ev_biogenesis_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
 	// This check could be improved by identifying and solving only the first collision involving this agent.
 	while (message)	{
@@ -705,17 +716,17 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 			distance = euclidean_distance(agent, message->x, message->y);
 			overlap = (agent->radius_um + message->radius_um) - distance;
 			if (overlap > max_overlap){
-				agent->closest_ev_initial_id = message->id;
-				agent->closest_ev_initial_distance = distance;
+				agent->closest_ev_biogenesis_id = message->id;
+				agent->closest_ev_biogenesis_distance = distance;
 				max_overlap = overlap;
 			}
 		}
-		message = get_next_location_ev_initial_message(message, location_messages, partition_matrix);
+		message = get_next_location_ev_biogenesis_message(message, location_messages, partition_matrix);
 	}
 	return 0;
 }
 // tests and solves in one go
-__FLAME_GPU_FUNC__ int test_collision_ev_initial_ev_default(xmachine_memory_EV* agent, 
+__FLAME_GPU_FUNC__ int test_collision_ev_biogenesis_ev_default(xmachine_memory_EV* agent, 
 	xmachine_message_location_ev_default_list* location_messages, 
 	xmachine_message_location_ev_default_PBM* partition_matrix){
 	
@@ -734,7 +745,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_initial_ev_default(xmachine_memory_EV* 
 				agent->closest_ev_default_id = message->id;
 				agent->closest_ev_default_distance = distance;
 				max_overlap = overlap;
-				agent->last_ev_collision = iteration;
+				agent->last_ev_default_collision = iteration;
 
 				agent->precol.x = agent->x;
 				agent->precol.y = agent->y;
@@ -748,7 +759,7 @@ __FLAME_GPU_FUNC__ int test_collision_ev_initial_ev_default(xmachine_memory_EV* 
 		message = get_next_location_ev_default_message(message, location_messages, partition_matrix);
 	}
 	if(agent->closest_ev_default_id != 0){
-		agent->time_in_initial_state += dt;
+		agent->time_in_biogenesis_state += dt;
 	}
 	return 0;
 }
@@ -928,11 +939,11 @@ __FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* age
 	return 0;
 }
 __FLAME_GPU_FUNC__ int collision_default_default(xmachine_memory_EV* agent){
-	agent->last_ev_collision = iteration;
+	agent->last_ev_default_collision = iteration;
 	return 0;
 }
-__FLAME_GPU_FUNC__ int collision_default_initial(xmachine_memory_EV* agent){
-	agent->last_ev_collision = iteration;
+__FLAME_GPU_FUNC__ int collision_default_biogenesis(xmachine_memory_EV* agent){
+	agent->last_ev_biogenesis_collision = iteration;
 	return 0;
 }
 __FLAME_GPU_FUNC__ int collision_secretory_cell(xmachine_memory_EV* agent){
@@ -1035,16 +1046,16 @@ __FLAME_GPU_FUNC__ int post_collision_update_ev_default_ev_default(xmachine_memo
 		return 0;
 }
 
-__FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_initial(xmachine_memory_EV* agent,
-	xmachine_message_location_ev_initial_list* location_messages, 
-	xmachine_message_location_ev_initial_PBM* partition_matrix){
+__FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_biogenesis(xmachine_memory_EV* agent,
+	xmachine_message_location_ev_biogenesis_list* location_messages, 
+	xmachine_message_location_ev_biogenesis_PBM* partition_matrix){
 
-	xmachine_message_location_ev_initial* message = get_first_location_ev_initial_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
+	xmachine_message_location_ev_biogenesis* message = get_first_location_ev_biogenesis_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 	while(message){
-		// The EV in default state must be relocated so that it just touches the EV in initial state
+		// The EV in default state must be relocated so that it just touches the EV in biogenesis state
 		// To do so, we correct it's position by the overlap distance
 		// EV_default's position is corrected using it's velocity before collision
-		if(agent->closest_ev_initial_id == message->id){
+		if(agent->closest_ev_biogenesis_id == message->id){
 			agent->precol.x = agent->x;
 			agent->precol.y = agent->y;
 			agent->precol_v.x = agent->vx;
@@ -1089,12 +1100,12 @@ __FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_initial(xmachine_memory_EV
 			agent->vx = new_values.x;
 			agent->vy = new_values.y;
 		}
-		message = get_next_location_ev_initial_message(message, location_messages, partition_matrix);
+		message = get_next_location_ev_biogenesis_message(message, location_messages, partition_matrix);
 	}
 	return 0;
 }
 
-__FLAME_GPU_FUNC__ int collision_solver_ev_initial_ev_default(xmachine_memory_EV* agent){
+__FLAME_GPU_FUNC__ int collision_solver_ev_biogenesis_ev_default(xmachine_memory_EV* agent){
 	
 	return 0;
 }
@@ -1168,12 +1179,12 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 			x -= secretoryCell->unit_normal_x * radius_um;
 			y -= secretoryCell->unit_normal_y * radius_um;
 
-			float time_in_initial = ((radius_um * 2.) / bm_ry) * dt;
+			float time_in_biogenesis = ((radius_um * 2.) / bm_ry) * dt;
 
 			// if the cell has only 1 source point, it cannot secrete another EV until
 			// the previous has been fully released, we make sure of that
-			if(secretoryCell->source_points < 2 && secretoryCell->time_to_next_secretion_attempt <= time_in_initial * 1.5){
-				secretoryCell->time_to_next_secretion_attempt = time_in_initial * 1.5;
+			if(secretoryCell->source_points < 2 && secretoryCell->time_to_next_secretion_attempt <= time_in_biogenesis * 1.5){
+				secretoryCell->time_to_next_secretion_attempt = time_in_biogenesis * 1.5;
 			}
 
 			// EV_secretoryCell_list, id, x, y, z, x_1, y_1, vx, vy, bm_vx, bm_vy, bm_r, last_bm,
@@ -1182,19 +1193,19 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 				mass_ag, radius_um, radius_um * radius_um, (radius_um * 1.5) * (radius_um * 1.5),
 				// diffusion_rate_um, MDD_01s, mdd125
 				diffusion_rate_ums, MDD_01s, mdd125,
-				// closest: ev_d_id, d_dist, ev_i_id, i_dist, ev_b_id, b_dist
-				0, 100, 0, 100, 0, 100,
-				// closest: secretory, dist, ciliary, dist, last_[ev|cell]_collision, age
-				-1, 100, -1, 100, 0, 0, 0,
-				// apoptosis timer, time_in_initial_state, orig t in init, velocity_um
-				time_in_initial * 2, time_in_initial, time_in_initial, 0,
+				// closest: ev_d_id, d_dist, ev_i_id, i_dist,
+				0, 100, 0, 100,
+				// closest: secretory, dist, ciliary, dist, last_[ev_d|ev_b|cell]_collision, age
+				-1, 100, -1, 100, 0, 0, 0, 0,
+				// (initial) apoptosis timer, time_in_biogenesis_state, velocity_um
+				time_in_biogenesis * 2, time_in_biogenesis, 0,
 				// pre-collision: x, y, vx, vy
 				fvec2(0.0f, 0.0f), fvec2(0.0f, 0.0f),
 				// dbgSegC
 				fvec4(0,0,0,0),
 				fvec4(0.0f, 0.0f, 0.0f, 0.0f),
-
-				uvec3(0,0,0), 0.0f
+				// defaultAt, disabledAt, disabledReason, displacementSq
+				0, 0, 0, 0.0f
 				);
 		}
 	}

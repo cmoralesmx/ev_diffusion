@@ -370,10 +370,12 @@
         <gpu:variable>
           <type>int</type>
           <name>min_ev_radius</name>
+          <defaultValue>-1</defaultValue>
         </gpu:variable>
         <gpu:variable>
           <type>int</type>
           <name>max_ev_radius</name>
+          <defaultValue>-1</defaultValue>
         </gpu:variable>
       </memory>
       <functions>
@@ -409,7 +411,7 @@
           <xagentOutputs>
             <gpu:xagentOutput>
               <xagentName>EV</xagentName>
-              <state>initial</state>
+              <state>biogenesis</state>
             </gpu:xagentOutput>
           </xagentOutputs>
           <gpu:globalCondition>
@@ -649,12 +651,12 @@
         </gpu:variable>
         <gpu:variable>
           <type>unsigned int</type>
-          <name>closest_ev_initial_id</name>
+          <name>closest_ev_biogenesis_id</name>
           <defaultValue>0</defaultValue>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>closest_ev_initial_distance</name>
+          <name>closest_ev_biogenesis_distance</name>
           <defaultValue>100</defaultValue>
         </gpu:variable>
         <gpu:variable>
@@ -679,7 +681,12 @@
         </gpu:variable>
         <gpu:variable>
           <type>unsigned int</type>
-          <name>last_ev_collision</name>
+          <name>last_ev_default_collision</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>last_ev_biogenesis_collision</name>
           <defaultValue>0</defaultValue>
         </gpu:variable>
         <gpu:variable>
@@ -699,7 +706,7 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>time_in_initial_state</name>
+          <name>time_in_biogenesis_state</name>
           <defaultValue>0</defaultValue>
         </gpu:variable>
         <gpu:variable>
@@ -729,9 +736,19 @@
           <description>Perp dist, corr needed, displ_x, displ_y</description>
         </gpu:variable>
         <gpu:variable>
-          <type>uvec3</type>
-          <name>becameAt</name>
-          <description>Became default at, became disabled at, reason for disaling</description>
+          <type>int</type>
+          <name>defaultAt</name>
+          <description>Iteration the EV became default at</description>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>disabledAt</name>
+          <description>Iteration the EV became disabled at</description>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>disabledReason</name>
+          <description>Reason for disabling</description>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -742,6 +759,72 @@
         
       </memory>
       <functions>
+        <!-- ev_initialization_default function -->
+        <gpu:function>
+          <name>ev_initialization_default</name>
+          <description>Ev already became default and is not disabled</description>
+          <currentState>initial</currentState>
+          <nextState>default</nextState>
+          <condition>
+            <lhs>
+            <condition>
+                <lhs><agentVariable>defaultAt</agentVariable></lhs>
+                <operator>&gt;</operator>
+                <rhs><value>0</value></rhs>
+              </condition>
+            </lhs>
+            <operator>&amp;&amp;</operator>
+            <rhs>
+              <condition>
+                <lhs><agentVariable>disabledReason</agentVariable></lhs>
+                <operator>&lt;</operator>
+                <rhs><value>1</value></rhs>
+              </condition>
+            </rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+        <gpu:function>
+          <name>ev_initialization_disabled</name>
+          <description>The EV is already in disabled state</description>
+          <currentState>initial</currentState>
+          <nextState>disabled</nextState>
+          <condition>
+            <lhs><agentVariable>disabledReason</agentVariable></lhs>
+            <operator>&gt;</operator>
+            <rhs><value>0</value></rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+        <!-- ev_initialization_biogenesis function -->
+        <gpu:function>
+          <name>ev_initialization_biogenesis</name>
+          <description>Is not default yet and is not disabled</description>
+          <currentState>initial</currentState>
+          <nextState>biogenesis</nextState>
+          <condition>
+            <lhs>
+              <condition>
+                <lhs><agentVariable>defaultAt</agentVariable></lhs>
+                <operator>&lt;</operator>
+                <rhs><value>1</value></rhs>
+              </condition>
+            </lhs>
+            <operator>&amp;&amp;</operator>
+            <rhs>
+              <condition>
+                <lhs><agentVariable>disabledReason</agentVariable></lhs>
+                <operator>&lt;</operator>
+                <rhs><value>1</value></rhs>
+              </condition>
+            </rhs>
+          </condition>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+        
         <!-- output_location_ev_default -->
         <gpu:function>
           <name>output_location_ev_default</name>
@@ -757,15 +840,15 @@
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
-        <!-- output_location_ev_initial -->
+        <!-- output_location_ev_biogenesis -->
         <gpu:function>
-          <name>output_location_ev_initial</name>
+          <name>output_location_ev_biogenesis</name>
           <description>Adds the EV's current position to the "location" message list, for collision detection purposes.</description>
-          <currentState>initial</currentState>
-          <nextState>initial</nextState>
+          <currentState>biogenesis</currentState>
+          <nextState>biogenesis</nextState>
           <outputs>
             <gpu:output>
-              <messageName>location_ev_initial</messageName>
+              <messageName>location_ev_biogenesis</messageName>
               <gpu:type>single_message</gpu:type>
             </gpu:output>
           </outputs>
@@ -801,28 +884,28 @@
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
-        <!-- test_collision_ev_default_ev_initial -->
+        <!-- test_collision_ev_default_ev_biogenesis -->
         <gpu:function>
-          <name>test_collision_ev_default_ev_initial</name>
+          <name>test_collision_ev_default_ev_biogenesis</name>
           <description>Checks for possible collisions with other EVs. Outputs an optional collision_message.
           EVs colliding with another EV contain the parameter "closest_ev_id" > -1 and have a value on "closest_ev_distance"</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
             <gpu:input>
-              <messageName>location_ev_initial</messageName>
+              <messageName>location_ev_biogenesis</messageName>
             </gpu:input>
           </inputs>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
-        <!-- test_collision_ev_initial_ev_default -->
+        <!-- test_collision_ev_biogenesis_ev_default -->
         <gpu:function>
-          <name>test_collision_ev_initial_ev_default</name>
-          <description>Checks for possible collisions with other EVs. EVs in initial state colliding
+          <name>test_collision_ev_biogenesis_ev_default</name>
+          <description>Checks for possible collisions with other EVs. EVs in biogenesis state colliding
           with another EV conserve the same position from the previous iteration</description>
-          <currentState>initial</currentState>
-          <nextState>initial</nextState>
+          <currentState>biogenesis</currentState>
+          <nextState>biogenesis</nextState>
           <inputs>
             <gpu:input>
               <messageName>location_ev_default</messageName>
@@ -881,17 +964,17 @@
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
 
-        <!-- solve_collision_ev_default_ev_initial -->
+        <!-- solve_collision_ev_default_ev_biogenesis -->
         <gpu:function>
-          <name>collision_solver_ev_default_ev_initial</name>
+          <name>collision_solver_ev_default_ev_biogenesis</name>
           <description>Solves the collision with other EVs.
           EVs colliding with another EV contain the parameter 
-          "closest_ev_initial_id" > 0 and have a value on "closest_ev_initial_distance"</description>
-          <currentState>collision_initial</currentState>
-          <nextState>collision_initial</nextState>
+          "closest_ev_biogenesis_id" > 0 and have a value on "closest_ev_biogenesis_distance"</description>
+          <currentState>collision_biogenesis</currentState>
+          <nextState>collision_biogenesis</nextState>
           <inputs>
             <gpu:input>
-              <messageName>location_ev_initial</messageName>
+              <messageName>location_ev_biogenesis</messageName>
             </gpu:input>
           </inputs>
           <gpu:reallocate>false</gpu:reallocate>
@@ -919,10 +1002,10 @@
             <operator>&amp;&amp;</operator>
             <rhs>
               <condition>
-                <!-- The initial ev is closer than others -->
+                <!-- The ev in biogenesis state is closer than others -->
                 <lhs>
                   <condition><lhs><agentVariable>closest_ev_default_distance</agentVariable></lhs>
-                  <operator>&lt;</operator><rhs><agentVariable>closest_ev_initial_distance</agentVariable></rhs></condition>
+                  <operator>&lt;</operator><rhs><agentVariable>closest_ev_biogenesis_distance</agentVariable></rhs></condition>
                 </lhs>
                 <operator>&amp;&amp;</operator>
                 <rhs>
@@ -945,16 +1028,16 @@
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
         <gpu:function>
-          <name>collision_default_initial</name>
-          <description>Identifies EVs in default state colliding with initial EVs</description>
+          <name>collision_default_biogenesis</name>
+          <description>Identifies EVs in default state colliding with biogenesis EVs</description>
           <currentState>default</currentState>
-          <nextState>collision_initial</nextState>
+          <nextState>collision_biogenesis</nextState>
           <condition>
             <!-- secretory_cell_collision -->
             <lhs>
             <!-- A secretory cell was detected within collision range, AND... -->
               <condition>
-                <lhs><agentVariable>closest_ev_initial_id</agentVariable></lhs>
+                <lhs><agentVariable>closest_ev_biogenesis_id</agentVariable></lhs>
                 <operator>&gt;</operator>
                 <rhs><value>0</value></rhs>
               </condition>
@@ -962,21 +1045,21 @@
             <operator>&amp;&amp;</operator>
             <rhs>
               <condition>
-                <!-- The initial ev is closer than others -->
+                <!-- The biogenesis ev is closer than others -->
                 <lhs>
-                  <condition><lhs><agentVariable>closest_ev_initial_distance</agentVariable></lhs>
+                  <condition><lhs><agentVariable>closest_ev_biogenesis_distance</agentVariable></lhs>
                   <operator>&lt;=</operator><rhs><agentVariable>closest_ev_default_distance</agentVariable></rhs></condition>
                 </lhs>
                 <operator>&amp;&amp;</operator>
                 <rhs>
                   <condition>
                     <lhs>
-                      <condition><lhs><agentVariable>closest_ev_initial_distance</agentVariable></lhs>
+                      <condition><lhs><agentVariable>closest_ev_biogenesis_distance</agentVariable></lhs>
                       <operator>&lt;</operator><rhs><agentVariable>closest_secretory_cell_distance</agentVariable></rhs></condition>
                     </lhs>
                     <operator>&amp;&amp;</operator>
                     <rhs>
-                      <condition><lhs><agentVariable>closest_ev_initial_distance</agentVariable></lhs>
+                      <condition><lhs><agentVariable>closest_ev_biogenesis_distance</agentVariable></lhs>
                       <operator>&lt;</operator><rhs><agentVariable>closest_ciliary_cell_distance</agentVariable></rhs></condition>
                     </rhs>
                   </condition>
@@ -1021,7 +1104,7 @@
                     <operator>&amp;&amp;</operator>
                     <rhs>
                       <condition><lhs><agentVariable>closest_ciliary_cell_distance</agentVariable></lhs>
-                      <operator>&lt;=</operator><rhs><agentVariable>closest_ev_initial_distance</agentVariable></rhs></condition>
+                      <operator>&lt;=</operator><rhs><agentVariable>closest_ev_biogenesis_distance</agentVariable></rhs></condition>
                     </rhs>
                   </condition>
                 </rhs>
@@ -1065,7 +1148,7 @@
                     <operator>&amp;&amp;</operator>
                     <rhs>
                       <condition><lhs><agentVariable>closest_secretory_cell_distance</agentVariable></lhs>
-                      <operator>&lt;=</operator><rhs><agentVariable>closest_ev_initial_distance</agentVariable></rhs></condition>
+                      <operator>&lt;=</operator><rhs><agentVariable>closest_ev_biogenesis_distance</agentVariable></rhs></condition>
                     </rhs>
                   </condition>
                 </rhs>
@@ -1146,8 +1229,8 @@
         </gpu:function>
         <gpu:function>
           <name>compute_displacement_ci</name>
-          <currentState>collision_initial</currentState>
-          <nextState>collision_initial</nextState>
+          <currentState>collision_biogenesis</currentState>
+          <nextState>collision_biogenesis</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
@@ -1179,8 +1262,8 @@
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
-          <name>reset_state_collision_initial</name>
-          <currentState>collision_initial</currentState>
+          <name>reset_state_collision_biogenesis</name>
+          <currentState>collision_biogenesis</currentState>
           <nextState>default</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1209,8 +1292,8 @@
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
-          <name>disable_EV_ci</name>
-          <currentState>collision_initial</currentState>
+          <name>disable_EV_cb</name>
+          <currentState>collision_biogenesis</currentState>
           <nextState>disabled</nextState>
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
@@ -1241,17 +1324,17 @@
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
-        <!-- reset_state_initial -->
+        <!-- reset_state_biogenesis -->
         <gpu:function>
-          <name>reset_state_initial</name>
-          <currentState>initial</currentState>
-          <nextState>initial</nextState>
+          <name>reset_state_biogenesis</name>
+          <currentState>biogenesis</currentState>
+          <nextState>biogenesis</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
-        <!-- initial to default -->
+        <!-- biogenesis to default -->
         <gpu:function>
-          <name>initial_to_default</name>
-          <currentState>initial</currentState>
+          <name>biogenesis_to_default</name>
+          <currentState>biogenesis</currentState>
           <nextState>default</nextState>
           <condition>
             <lhs>
@@ -1259,7 +1342,7 @@
             </lhs>
             <operator>&gt;</operator>
             <rhs>
-              <agentVariable>time_in_initial_state</agentVariable>
+              <agentVariable>time_in_biogenesis_state</agentVariable>
             </rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
@@ -1273,11 +1356,11 @@
           
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
-        <!-- move_initial -->
+        <!-- move_biogenesis -->
         <gpu:function>
-          <name>moveInitial</name>
-          <currentState>initial</currentState>
-          <nextState>initial</nextState>
+          <name>moveBiogenesis</name>
+          <currentState>biogenesis</currentState>
+          <nextState>biogenesis</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         
@@ -1300,13 +1383,13 @@
           <gpu:reallocate>true</gpu:reallocate>
 	        <gpu:RNG>true</gpu:RNG>
         </gpu:function>
-        <!-- ev_initial_apoptosis -->
+        <!-- ev_biogenesis_apoptosis -->
         <gpu:function>
-          <name>ev_initial_apoptosis</name>
-          <currentState>initial</currentState>
+          <name>ev_biogenesis_apoptosis</name>
+          <currentState>biogenesis</currentState>
           <nextState>disabled</nextState>
           <condition>
-            <lhs><agentVariable>time_in_initial_state</agentVariable></lhs>
+            <lhs><agentVariable>time_in_biogenesis_state</agentVariable></lhs>
             <operator>&gt;</operator>
             <rhs><agentVariable>apoptosis_timer</agentVariable></rhs>
           </condition>
@@ -1335,6 +1418,12 @@
       
       <states>
         <gpu:state>
+          <name>initial</name>
+        </gpu:state>
+        <gpu:state>
+          <name>biogenesis</name>
+        </gpu:state>
+        <gpu:state>
           <name>default</name>
         </gpu:state>
         <gpu:state>
@@ -1347,10 +1436,7 @@
           <name>collision_default</name>
         </gpu:state>
         <gpu:state>
-          <name>collision_initial</name>
-        </gpu:state>
-        <gpu:state>
-          <name>initial</name>
+          <name>collision_biogenesis</name>
         </gpu:state>
         <gpu:state>
           <name>disabled</name>
@@ -1414,9 +1500,9 @@
       </gpu:partitioningSpatial>
       <gpu:bufferSize>1048576</gpu:bufferSize>
     </gpu:message>
-    <!-- location_ev_initial -->
+    <!-- location_ev_biogenesis -->
     <gpu:message>
-      <name>location_ev_initial</name>
+      <name>location_ev_biogenesis</name>
       <variables>
         <gpu:variable>
           <type>unsigned int</type>
@@ -1706,6 +1792,16 @@
       <gpu:layerFunction>
         <name>secretory_cell_initialization</name>
       </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>ev_initialization_disabled</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>ev_initialization_biogenesis</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>ev_initialization_default</name>
+      </gpu:layerFunction>
+      
     </layer>
 
     <layer>
@@ -1713,14 +1809,14 @@
         <name>ev_default_apoptosis</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
-        <name>ev_initial_apoptosis</name>
+        <name>ev_biogenesis_apoptosis</name>
       </gpu:layerFunction>
     </layer>
 
     <layer>
       <gpu:layerFunction>
         <!-- Recently secreted EVs reaching maturity become default state -->
-        <name>initial_to_default</name>
+        <name>biogenesis_to_default</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
         <!-- Introduce new EVs into the system, initially placed OOB-->
@@ -1736,7 +1832,7 @@
     <layer>
     <!-- Apply the computed BM to default EVs or ballistic displ otherwise -->
       <gpu:layerFunction><name>moveDefault</name></gpu:layerFunction> <!-- ID 2000 -->
-      <gpu:layerFunction><name>moveInitial</name></gpu:layerFunction>
+      <gpu:layerFunction><name>moveBiogenesis</name></gpu:layerFunction>
     </layer>
     <!-- Output message to communicate the boundaries positions (ciliary cells, secretory cells) -->
     <layer>
@@ -1750,7 +1846,7 @@
         <name>output_location_ev_default</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
-        <name>output_location_ev_initial</name>
+        <name>output_location_ev_biogenesis</name>
       </gpu:layerFunction>
     </layer>
     <!-- Check for collisions -->
@@ -1766,10 +1862,10 @@
     </layer>
     <layer>
       <gpu:layerFunction>
-        <name>test_collision_ev_default_ev_initial</name>
+        <name>test_collision_ev_default_ev_biogenesis</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
-        <name>test_collision_ev_initial_ev_default</name> <!-- ID 5500 -->
+        <name>test_collision_ev_biogenesis_ev_default</name> <!-- ID 5500 -->
       </gpu:layerFunction>
     </layer>
     <layer>
@@ -1786,7 +1882,7 @@
     </layer>
     <layer>
       <gpu:layerFunction>
-        <name>collision_default_initial</name>
+        <name>collision_default_biogenesis</name>
       </gpu:layerFunction>
     </layer>
     <layer>
@@ -1811,7 +1907,7 @@
         <name>ciliary_cell_collision_resolution</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
-        <name>collision_solver_ev_default_ev_initial</name>
+        <name>collision_solver_ev_default_ev_biogenesis</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
         <!-- Only executed by one of the involved EVs -->
@@ -1851,7 +1947,7 @@
         <name>disable_EV_cd</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
-        <name>disable_EV_ci</name>
+        <name>disable_EV_cb</name>
       </gpu:layerFunction>
     </layer>
     <!-- Those in valid displacements are reset back to default -->
@@ -1866,7 +1962,7 @@
       </gpu:layerFunction>
       <gpu:layerFunction>
         <!-- EVs in collision_ev_default state reset to ev_default state -->
-        <name>reset_state_collision_initial</name>
+        <name>reset_state_collision_biogenesis</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
         <!-- EVs in collision_ev_default state reset to ev_default state -->
@@ -1877,8 +1973,8 @@
         <name>reset_state_collision_ciliary</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
-        <!-- EVs in initial state stay in initial state -->
-        <name>reset_state_initial</name>
+        <!-- EVs in biogenesis state stay in biogenesis state -->
+        <name>reset_state_biogenesis</name>
       </gpu:layerFunction>
     </layer>
     
