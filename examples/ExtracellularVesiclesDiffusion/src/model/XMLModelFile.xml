@@ -1491,9 +1491,9 @@
       </variables>
       <gpu:partitioningSpatial>
         <gpu:radius>2</gpu:radius>
-        <gpu:xmin>20</gpu:xmin>
+        <gpu:xmin>0</gpu:xmin>
         <gpu:xmax>3790</gpu:xmax>
-        <gpu:ymin>40</gpu:ymin>
+        <gpu:ymin>0</gpu:ymin>
         <gpu:ymax>5270</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>2</gpu:zmax>
@@ -1540,9 +1540,9 @@
       </variables>
       <gpu:partitioningSpatial>
         <gpu:radius>2</gpu:radius>
-        <gpu:xmin>20</gpu:xmin>
+        <gpu:xmin>0</gpu:xmin>
         <gpu:xmax>3790</gpu:xmax>
-        <gpu:ymin>40</gpu:ymin>
+        <gpu:ymin>0</gpu:ymin>
         <gpu:ymax>5270</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>2</gpu:zmax>
@@ -1632,9 +1632,9 @@
       </variables>
       <gpu:partitioningSpatial>
         <gpu:radius>5</gpu:radius>
-        <gpu:xmin>20</gpu:xmin>
+        <gpu:xmin>0</gpu:xmin>
         <gpu:xmax>3790</gpu:xmax>
-        <gpu:ymin>40</gpu:ymin>
+        <gpu:ymin>0</gpu:ymin>
         <gpu:ymax>5270</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>5</gpu:zmax>
@@ -1722,9 +1722,9 @@
       </variables>
       <gpu:partitioningSpatial>
         <gpu:radius>5</gpu:radius>
-        <gpu:xmin>20</gpu:xmin>
+        <gpu:xmin>0</gpu:xmin>
         <gpu:xmax>3790</gpu:xmax>
-        <gpu:ymin>40</gpu:ymin>
+        <gpu:ymin>0</gpu:ymin>
         <gpu:ymax>5270</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>5</gpu:zmax>
@@ -1776,9 +1776,9 @@
       </variables>
       <gpu:partitioningSpatial>
         <gpu:radius>2</gpu:radius>
-        <gpu:xmin>20</gpu:xmin>
+        <gpu:xmin>0</gpu:xmin>
         <gpu:xmax>3790</gpu:xmax>
-        <gpu:ymin>40</gpu:ymin>
+        <gpu:ymin>0</gpu:ymin>
         <gpu:ymax>5270</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>2</gpu:zmax>
