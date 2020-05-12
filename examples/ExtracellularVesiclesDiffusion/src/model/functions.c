@@ -1197,8 +1197,8 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 				0, 100, 0, 100,
 				// closest: secretory, dist, ciliary, dist, last_[ev_d|ev_b|cell]_collision, age
 				-1, 100, -1, 100, 0, 0, 0, 0,
-				// (initial) apoptosis timer, time_in_biogenesis_state, velocity_um
-				time_in_biogenesis * 2, time_in_biogenesis, 0,
+				// (initial) apoptosis timer, time_in_biogenesis_state
+				time_in_biogenesis * 2, time_in_biogenesis,
 				// pre-collision: x, y, vx, vy
 				fvec2(0.0f, 0.0f), fvec2(0.0f, 0.0f),
 				// dbgSegC

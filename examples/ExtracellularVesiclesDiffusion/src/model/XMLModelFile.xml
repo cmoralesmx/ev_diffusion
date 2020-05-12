@@ -709,11 +709,6 @@
           <name>time_in_biogenesis_state</name>
           <defaultValue>0</defaultValue>
         </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>velocity_ums</name>
-          <description>DEPRECATED??? stores the value of r</description>
-        </gpu:variable>
 
         <gpu:variable>
           <type>fvec2</type>
