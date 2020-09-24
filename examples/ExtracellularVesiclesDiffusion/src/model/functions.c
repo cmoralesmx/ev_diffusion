@@ -1125,7 +1125,7 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 		if( secretoryCell->probability_of_secretion > ev_secretion_threshold)
 		{
 			float radius_nm = (rnd<CONTINUOUS>(rand48) * secretoryCell->ev_radius_range) + secretoryCell->min_ev_radius;
-			float radius_um = (radius_nm) / 1000; // faster than doing /1000
+			float radius_um = (radius_nm) * .001; // * .001 faster than doing /1000
 
 			// compute the volume
 			//float volume = const_pi_4div3 * radius_nm_3;
@@ -1136,7 +1136,7 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 			// N square metres to square micrometre: multiply N * 1e+12
 			// N metres to micrometres: multiply N * 1e+6
 			// Here D is in squared meters/second
-			float D_ms = const_Boltzmann_x_Temp_K / (const_6_pi_dynamic_viscosity * (radius_um / 1E6));
+			float D_ms = const_Boltzmann_x_Temp_K / (const_6_pi_dynamic_viscosity * (radius_um * 0.000001)); // / 1e6
 			// A more usual units for D is cm^2/s^-1, however, we use um^2 / sec
 			float diffusion_rate_ums = D_ms * 1e+12; // square micrometre
 			// Mean Squared Displacement (MSD) x^2 = 2 * dof * D * t

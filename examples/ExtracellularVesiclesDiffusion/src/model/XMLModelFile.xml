@@ -211,7 +211,7 @@
       <gpu:variable>
         <type>int</type>
         <name>threshold_ex_mv</name>
-        <description>Threshold between exosome and microvesicle size. Becomes the upper limit for exosomes, lower limit for MV</description>
+        <description>Threshold between exosome and microvesicle radius size. Becomes the upper limit for exosomes radius, lower limit for MV</description>
         <defaultValue>50</defaultValue>
       </gpu:variable>
       <!-- dt - timestep of the model -->
