@@ -374,7 +374,7 @@
         </gpu:variable>
         <gpu:variable>
           <type>int</type>
-          <name>max_ev_radius</name>
+          <name>ev_radius_range</name>
           <defaultValue>-1</defaultValue>
         </gpu:variable>
       </memory>

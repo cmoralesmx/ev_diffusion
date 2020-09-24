@@ -248,12 +248,13 @@ __FLAME_GPU_FUNC__ int secretory_cell_initialization(xmachine_memory_SecretoryCe
 			if(rnd<CONTINUOUS>(rand48) <= 0.5){
 				// exosome-size range
 				cell->min_ev_radius = min_ev_radius;
-				cell->max_ev_radius = threshold_ex_mv;
+				cell->ev_radius_range = threshold_ex_mv - min_ev_radius;
 			} else {
 				// microvesicles-size range
 				cell->min_ev_radius = threshold_ex_mv;
-				cell->max_ev_radius = max_ev_radius;
+				cell->ev_radius_range = max_ev_radius - threshold_ex_mv;
 			}
+			
 		}
 	return 0;
 }
@@ -1123,10 +1124,7 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 				
 		if( secretoryCell->probability_of_secretion > ev_secretion_threshold)
 		{
-			int rand_i = (int)(rnd<CONTINUOUS>(rand48) * secretoryCell->max_ev_radius);
-			// our simulations work with EVs with diameters in the range 80-320 nm
-			// therefore, the radius must be in the range 40-160 nm
-			float radius_nm = (rand_i % secretoryCell->max_ev_radius) + secretoryCell->min_ev_radius;
+			float radius_nm = (rnd<CONTINUOUS>(rand48) * secretoryCell->ev_radius_range) + secretoryCell->min_ev_radius;
 			float radius_um = (radius_nm) / 1000; // faster than doing /1000
 
 			// compute the volume
