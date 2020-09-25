@@ -593,6 +593,10 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
+          <name>radius_um_150sq</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
           <name>diffusion_rate_um</name>
         </gpu:variable>
         <gpu:variable>
@@ -726,13 +730,7 @@
         <gpu:variable>
           <type>float</type>
           <name>displacementSq</name>
-          <description>DEPRECATED - displacement squared</description>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>intendDispl</name>
-          <description>DEPRECATED - displacement squared</description>
+          <description>displacement squared</description>
           <defaultValue>0</defaultValue>
         </gpu:variable>
         
@@ -768,22 +766,6 @@
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
-        <!-- output_location_ev_bounced 
-          <gpu:function>
-            <name>output_location_ev_bounced</name>
-            <description>Adds the EV's current position to the "location" message list, for collision detection purposes.</description>
-            <currentState>collision_wall</currentState>
-            <nextState>collision_wall</nextState>
-            <outputs>
-              <gpu:output>
-                <messageName>location_ev_bounced</messageName>
-                <gpu:type>single_message</gpu:type>
-              </gpu:output>
-            </outputs>
-            <gpu:reallocate>false</gpu:reallocate>
-            <gpu:RNG>false</gpu:RNG>
-          </gpu:function>
-        -->
         <!-- test secretory cell collision -->
         <gpu:function>
           <name>test_secretory_cell_collision</name>
@@ -1151,25 +1133,25 @@
 
         <!-- check displacement -->
         <gpu:function>
-          <name>check_displacement_cd</name>
+          <name>compute_displacement_cd</name>
           <currentState>collision_default</currentState>
           <nextState>collision_default</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
-          <name>check_displacement_ci</name>
+          <name>compute_displacement_ci</name>
           <currentState>collision_initial</currentState>
           <nextState>collision_initial</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
-          <name>check_displacement_cs</name>
+          <name>compute_displacement_cs</name>
           <currentState>collision_secretory</currentState>
           <nextState>collision_secretory</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
-          <name>check_displacement_cc</name>
+          <name>compute_displacement_cc</name>
           <currentState>collision_ciliary</currentState>
           <nextState>collision_ciliary</nextState>
           <gpu:reallocate>false</gpu:reallocate>
@@ -1188,44 +1170,24 @@
           <name>reset_state_collision_default</name>
           <currentState>collision_default</currentState>
           <nextState>default</nextState>
-          <condition>
-            <lhs><agentVariable>displacementSq</agentVariable></lhs>
-            <operator>&lt;=</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
-          </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
           <name>reset_state_collision_initial</name>
           <currentState>collision_initial</currentState>
           <nextState>default</nextState>
-          <condition>
-            <lhs><agentVariable>displacementSq</agentVariable></lhs>
-            <operator>&lt;=</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
-          </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
           <name>reset_state_collision_secretory</name>
           <currentState>collision_secretory</currentState>
           <nextState>default</nextState>
-          <condition>
-            <lhs><agentVariable>displacementSq</agentVariable></lhs>
-            <operator>&lt;=</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
-          </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <gpu:function>
           <name>reset_state_collision_ciliary</name>
           <currentState>collision_ciliary</currentState>
           <nextState>default</nextState>
-          <condition>
-            <lhs><agentVariable>displacementSq</agentVariable></lhs>
-            <operator>&lt;=</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
-          </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         <!-- DISABLE EVs-->
@@ -1236,7 +1198,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&gt;</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1247,7 +1209,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&gt;</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1258,7 +1220,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&gt;</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1269,7 +1231,7 @@
           <condition>
             <lhs><agentVariable>displacementSq</agentVariable></lhs>
             <operator>&gt;</operator>
-            <rhs><agentVariable>radius_um_sq</agentVariable></rhs>
+            <rhs><agentVariable>radius_um_150sq</agentVariable></rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
@@ -1342,7 +1304,7 @@
             <operator>&gt;</operator>
             <rhs><agentVariable>apoptosis_timer</agentVariable></rhs>
           </condition>
-          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:reallocate>true</gpu:reallocate>
 	        <gpu:RNG>false</gpu:RNG>
         </gpu:function>
         <gpu:function>
@@ -1437,10 +1399,10 @@
       </variables>
       <gpu:partitioningSpatial>
         <gpu:radius>2</gpu:radius>
-        <gpu:xmin>0</gpu:xmin>
-        <gpu:xmax>3000</gpu:xmax>
-        <gpu:ymin>0</gpu:ymin>
-        <gpu:ymax>4000</gpu:ymax>
+        <gpu:xmin>20</gpu:xmin>
+        <gpu:xmax>3790</gpu:xmax>
+        <gpu:ymin>40</gpu:ymin>
+        <gpu:ymax>5270</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>2</gpu:zmax>
       </gpu:partitioningSpatial>
@@ -1486,10 +1448,10 @@
       </variables>
       <gpu:partitioningSpatial>
         <gpu:radius>2</gpu:radius>
-        <gpu:xmin>0</gpu:xmin>
-        <gpu:xmax>3000</gpu:xmax>
-        <gpu:ymin>0</gpu:ymin>
-        <gpu:ymax>4000</gpu:ymax>
+        <gpu:xmin>20</gpu:xmin>
+        <gpu:xmax>3790</gpu:xmax>
+        <gpu:ymin>40</gpu:ymin>
+        <gpu:ymax>5270</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>2</gpu:zmax>
       </gpu:partitioningSpatial>
@@ -1578,10 +1540,10 @@
       </variables>
       <gpu:partitioningSpatial>
         <gpu:radius>5</gpu:radius>
-        <gpu:xmin>0</gpu:xmin>
-        <gpu:xmax>3000</gpu:xmax>
-        <gpu:ymin>0</gpu:ymin>
-        <gpu:ymax>4000</gpu:ymax>
+        <gpu:xmin>20</gpu:xmin>
+        <gpu:xmax>3790</gpu:xmax>
+        <gpu:ymin>40</gpu:ymin>
+        <gpu:ymax>5270</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>5</gpu:zmax>
       </gpu:partitioningSpatial>
@@ -1668,288 +1630,16 @@
       </variables>
       <gpu:partitioningSpatial>
         <gpu:radius>5</gpu:radius>
-        <gpu:xmin>0</gpu:xmin>
-        <gpu:xmax>3000</gpu:xmax>
-        <gpu:ymin>0</gpu:ymin>
-        <gpu:ymax>4000</gpu:ymax>
+        <gpu:xmin>20</gpu:xmin>
+        <gpu:xmax>3790</gpu:xmax>
+        <gpu:ymin>40</gpu:ymin>
+        <gpu:ymax>5270</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>5</gpu:zmax>
       </gpu:partitioningSpatial>
       <gpu:bufferSize>131072</gpu:bufferSize>
     </gpu:message>
     
-    <!-- ciliary_cell collision message -->
-    <gpu:message>
-      <name>ciliary_cell_collision</name>
-      <variables>
-        <gpu:variable>
-          <type>unsigned int</type>
-          <name>ev_id</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>z</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>int</type>
-          <name>cell_id</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>distance</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>p1_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>p1_y</name>
-        </gpu:variable>
-         <gpu:variable>
-          <type>float</type>
-          <name>p2_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>p2_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>cell_direction_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>cell_direction_y</name>
-        </gpu:variable>
-        
-        <gpu:variable>
-          <type>float</type>
-          <name>cell_direction_x_unit</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>cell_direction_y_unit</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>cell_direction_length</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>normal_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>normal_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>unit_normal_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>unit_normal_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>normal_length</name>
-        </gpu:variable>
-      </variables>
-      <gpu:partitioningSpatial>
-        <gpu:radius>4</gpu:radius>
-        <gpu:xmin>0</gpu:xmin>
-        <gpu:xmax>3000</gpu:xmax>
-        <gpu:ymin>0</gpu:ymin>
-        <gpu:ymax>4000</gpu:ymax>
-        <gpu:zmin>0</gpu:zmin>
-        <gpu:zmax>4</gpu:zmax>
-      </gpu:partitioningSpatial>
-      <gpu:bufferSize>262144</gpu:bufferSize>
-    </gpu:message>
-    <!-- secretory cell collision message -->
-    <gpu:message>
-      <name>secretory_cell_collision</name>
-      <variables>
-        <gpu:variable>
-          <type>unsigned int</type>
-          <name>ev_id</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>z</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>int</type>
-          <name>cell_id</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>distance</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>p1_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>p1_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>p2_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>p2_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>cell_direction_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>cell_direction_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>cell_direction_x_unit</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>cell_direction_y_unit</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>cell_direction_length</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>normal_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>normal_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>unit_normal_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>unit_normal_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>normal_length</name>
-        </gpu:variable>
-      </variables>
-      <gpu:partitioningSpatial>
-        <gpu:radius>4</gpu:radius>
-        <gpu:xmin>0</gpu:xmin>
-        <gpu:xmax>3000</gpu:xmax>
-        <gpu:ymin>0</gpu:ymin>
-        <gpu:ymax>4000</gpu:ymax>
-        <gpu:zmin>0</gpu:zmin>
-        <gpu:zmax>4</gpu:zmax>
-      </gpu:partitioningSpatial>
-      <gpu:bufferSize>262144</gpu:bufferSize>
-    </gpu:message>
-
-    <!-- collision_ev_default message -->
-    <gpu:message>
-      <name>collision_ev_default</name>
-      <variables>
-        <gpu:variable>
-          <type>unsigned int</type>
-          <name>ev1_id</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>z</name>
-        </gpu:variable>
-
-        <gpu:variable>
-          <type>unsigned int</type>
-          <name>ev2_id</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev2_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev2_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev2_vx</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev2_vy</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev2_mass_ag</name>
-        </gpu:variable>
-
-        <gpu:variable>
-          <type>float</type>
-          <name>min_distance</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>distance_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>distance_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>distance_length</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>overlap</name>
-        </gpu:variable>
-      </variables>
-      <gpu:partitioningSpatial>
-        <gpu:radius>2</gpu:radius>
-        <gpu:xmin>0</gpu:xmin>
-        <gpu:xmax>3000</gpu:xmax>
-        <gpu:ymin>0</gpu:ymin>
-        <gpu:ymax>4000</gpu:ymax>
-        <gpu:zmin>0</gpu:zmin>
-        <gpu:zmax>2</gpu:zmax>
-      </gpu:partitioningSpatial>
-      <gpu:bufferSize>262144</gpu:bufferSize>
-    </gpu:message>
     <!-- resolved_collision_ev_default message -->
     <gpu:message>
       <name>resolved_collision_ev_default</name>
@@ -1994,10 +1684,10 @@
       </variables>
       <gpu:partitioningSpatial>
         <gpu:radius>2</gpu:radius>
-        <gpu:xmin>0</gpu:xmin>
-        <gpu:xmax>3000</gpu:xmax>
-        <gpu:ymin>0</gpu:ymin>
-        <gpu:ymax>4000</gpu:ymax>
+        <gpu:xmin>20</gpu:xmin>
+        <gpu:xmax>3790</gpu:xmax>
+        <gpu:ymin>40</gpu:ymin>
+        <gpu:ymax>5270</gpu:ymax>
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>2</gpu:zmax>
       </gpu:partitioningSpatial>
@@ -2014,79 +1704,27 @@
         <name>ev_initial_apoptosis</name>
       </gpu:layerFunction>
     </layer>
-    <!-- Compute Brownian Motion for EVs not involved in a collision -->
+
+    <layer>
+      <gpu:layerFunction>
+        <!-- Recently secreted EVs reaching maturity become default state -->
+        <name>initial_to_default</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <!-- Introduce new EVs into the system, initially placed OOB-->
+        <name>secrete_ev</name>
+      </gpu:layerFunction>
+    </layer>
+    <!-- Compute the effect of Brownian Motion on each default EV -->
     <layer>
       <gpu:layerFunction>
         <name>brownian_movement_2d</name> <!-- ID 1000 -->
       </gpu:layerFunction>
     </layer>
     <layer>
-      <gpu:layerFunction>
-        <name>check_displacement_cs</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <name>check_displacement_cc</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <name>check_displacement_ci</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <name>check_displacement_cd</name>
-      </gpu:layerFunction>
-    </layer>
-    <layer>
-      <gpu:layerFunction>
-        <!-- EVs in default state do not change state -->
-        <name>reset_state</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <!-- EVs in collision_ev_default state reset to ev_default state -->
-        <name>reset_state_collision_default</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <!-- EVs in collision_ev_default state reset to ev_default state -->
-        <name>reset_state_collision_initial</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <!-- EVs in collision_ev_default state reset to ev_default state -->
-        <name>reset_state_collision_secretory</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <!-- EVs in collision_ev_default state reset to ev_default state -->
-        <name>reset_state_collision_ciliary</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <!-- EVs in initial state stay in initial state -->
-        <name>reset_state_initial</name>
-      </gpu:layerFunction>
-    </layer>
-    <layer>
-      <gpu:layerFunction>
-        <name>disable_EV_cs</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <name>disable_EV_cc</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <name>disable_EV_cd</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <name>disable_EV_ci</name>
-      </gpu:layerFunction>
-    </layer>
-    <layer>
-      <gpu:layerFunction>
-        <!-- EVs in initial state change to default state -->
-        <name>initial_to_default</name>
-      </gpu:layerFunction>
-    </layer>
-    <layer>
+    <!-- Apply the computed BM to default EVs or ballistic displ otherwise -->
       <gpu:layerFunction><name>moveDefault</name></gpu:layerFunction> <!-- ID 2000 -->
       <gpu:layerFunction><name>moveInitial</name></gpu:layerFunction>
-      <!-- New EVs secretion/generation -->
-      <gpu:layerFunction>
-        <name>secrete_ev</name>
-      </gpu:layerFunction>
     </layer>
 
     <!-- Output message to communicate the boundaries positions (ciliary cells, secretory cells) -->
@@ -2176,5 +1814,64 @@
         <name>post_collision_update_ev_default_ev_default</name>
       </gpu:layerFunction>
     </layer>
+
+    <!-- Verify the displacement post collision is valid -->
+    <layer>
+      <gpu:layerFunction>
+        <name>compute_displacement_cs</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>compute_displacement_cc</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>compute_displacement_ci</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>compute_displacement_cd</name>
+      </gpu:layerFunction>
+    </layer>
+    <!-- Those with non-valid displacements are disabled -->
+    <layer>
+      <gpu:layerFunction>
+        <name>disable_EV_cs</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>disable_EV_cc</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>disable_EV_cd</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>disable_EV_ci</name>
+      </gpu:layerFunction>
+    </layer>
+    <!-- Those in valid displacements are reset back to default -->
+    <layer>
+      <gpu:layerFunction>
+        <!-- EVs in default state do not change state -->
+        <name>reset_state</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <!-- EVs in collision_ev_default state reset to ev_default state -->
+        <name>reset_state_collision_default</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <!-- EVs in collision_ev_default state reset to ev_default state -->
+        <name>reset_state_collision_initial</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <!-- EVs in collision_ev_default state reset to ev_default state -->
+        <name>reset_state_collision_secretory</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <!-- EVs in collision_ev_default state reset to ev_default state -->
+        <name>reset_state_collision_ciliary</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <!-- EVs in initial state stay in initial state -->
+        <name>reset_state_initial</name>
+      </gpu:layerFunction>
+    </layer>
+    
   </layers>
 </gpu:xmodel>
