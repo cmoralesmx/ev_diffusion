@@ -1398,8 +1398,8 @@
       </states>
       <gpu:type>continuous</gpu:type>
       <!-- 2^17=131072, 2^16=65536, 1^15=32768, 2^14=16384, 2^13=8192 2^12= 4095, 2^11=2048
-      2^18=262144, 2^19=524288, 2^20=1048576, 2^21=2,097,152 2^22=4,192,304 -->
-      <gpu:bufferSize>4192304</gpu:bufferSize>
+      2^18=262144, 2^19=524288, 2^20=1048576, 2^21=2097152 2^22=4192304 -->
+      <gpu:bufferSize>1048576</gpu:bufferSize>
     </gpu:xagent>
   </xagents>
   
@@ -1451,7 +1451,7 @@
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>2</gpu:zmax>
       </gpu:partitioningSpatial>
-      <gpu:bufferSize>4192304</gpu:bufferSize>
+      <gpu:bufferSize>1048576</gpu:bufferSize>
     </gpu:message>
     <!-- location_ev_initial -->
     <gpu:message>
@@ -1500,7 +1500,7 @@
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>2</gpu:zmax>
       </gpu:partitioningSpatial>
-      <gpu:bufferSize>524288</gpu:bufferSize>
+      <gpu:bufferSize>131072</gpu:bufferSize>
     </gpu:message>
     <!-- location_ev_bounced -->
     <gpu:message>
@@ -1549,7 +1549,7 @@
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>2</gpu:zmax>
       </gpu:partitioningSpatial>
-      <gpu:bufferSize>524288</gpu:bufferSize>
+      <gpu:bufferSize>131072</gpu:bufferSize>
     </gpu:message>
     <!-- secretory cell_location -->
     <gpu:message>
@@ -1828,7 +1828,7 @@
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>4</gpu:zmax>
       </gpu:partitioningSpatial>
-      <gpu:bufferSize>1048576</gpu:bufferSize>
+      <gpu:bufferSize>262144</gpu:bufferSize>
     </gpu:message>
     <!-- secretory cell collision message -->
     <gpu:message>
@@ -1924,7 +1924,7 @@
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>4</gpu:zmax>
       </gpu:partitioningSpatial>
-      <gpu:bufferSize>1048576</gpu:bufferSize>
+      <gpu:bufferSize>262144</gpu:bufferSize>
     </gpu:message>
 
     <!-- collision_ev_default message -->
@@ -2003,7 +2003,7 @@
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>2</gpu:zmax>
       </gpu:partitioningSpatial>
-      <gpu:bufferSize>1048576</gpu:bufferSize>
+      <gpu:bufferSize>262144</gpu:bufferSize>
     </gpu:message>
     <!-- resolved_collision_ev_default message -->
     <gpu:message>
@@ -2056,7 +2056,7 @@
         <gpu:zmin>0</gpu:zmin>
         <gpu:zmax>2</gpu:zmax>
       </gpu:partitioningSpatial>
-      <gpu:bufferSize>1048576</gpu:bufferSize>
+      <gpu:bufferSize>262144</gpu:bufferSize>
     </gpu:message>
   </messages>
   
