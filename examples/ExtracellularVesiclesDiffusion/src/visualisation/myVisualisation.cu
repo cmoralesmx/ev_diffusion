@@ -394,18 +394,18 @@ void runCuda()
 		// unmap buffer object
 		gpuErrchk(cudaGraphicsUnmapResources(1, &EV_initial_cgr));
 	}
-	if (get_agent_EV_collision_ev_default_count() > 0 && visualisation_enabled)
+	if (get_agent_EV_collision_default_count() > 0 && visualisation_enabled)
 	{
 		size_t accessibleBufferSize = 0;
 		// map OpenGL buffer object for writing from CUDA
 		gpuErrchk(cudaGraphicsMapResources(1, &EV_collision_ev_default_cgr));
 		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&dptr_collision_ev_default, &accessibleBufferSize, EV_collision_ev_default_cgr));
 		//cuda block size
-		tile_size = (int)ceil((float)get_agent_EV_collision_ev_default_count() / threads_per_tile);
+		tile_size = (int)ceil((float)get_agent_EV_collision_default_count() / threads_per_tile);
 		grid = dim3(tile_size, 1, 1);
 		threads = dim3(threads_per_tile, 1, 1);
 
-		output_EV_agent_to_VBO << < grid, threads >> >(get_device_EV_collision_ev_default_agents(), dptr_collision_ev_default);
+		output_EV_agent_to_VBO << < grid, threads >> >(get_device_EV_collision_default_agents(), dptr_collision_ev_default);
 		gpuErrchkLaunch();
 		// unmap buffer object
 		gpuErrchk(cudaGraphicsUnmapResources(1, &EV_collision_ev_default_cgr));
@@ -536,7 +536,7 @@ void display()
 		glDrawArrays(GL_POINTS, 0, get_agent_EV_initial_count());
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
-	if (get_agent_EV_collision_ev_default_count() > 0) {
+	if (get_agent_EV_collision_default_count() > 0) {
 		evCollisionEvDefaultShader->use();
 		evCollisionEvDefaultShader->setMat4("mvp", mvp);
 
@@ -546,7 +546,7 @@ void display()
 		glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)(2 * sizeof(float)));
 		glEnableVertexAttribArray(1);
 
-		glDrawArrays(GL_POINTS, 0, get_agent_EV_collision_ev_default_count());
+		glDrawArrays(GL_POINTS, 0, get_agent_EV_collision_default_count());
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 	checkGLError("display 1c");

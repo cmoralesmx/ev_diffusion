@@ -49,132 +49,6 @@ __device__ __host__ float radians(float degrees){
 	return degrees * (M_PI / 180.0);
 }
 
-/**
-* Compute the distance between two agents using the coordinates of their centers
-*/
-__device__ float euclidean_distance(xmachine_memory_EV* agent, 
-	float message_x, float message_y)
-{
-	return sqrtf((agent->x - message_x) * (agent->x - message_x) +
-		(agent->y - message_y) * (agent->y - message_y));
-}
-
-__FLAME_GPU_INIT_FUNC__ void precompute_values() {
-	srand(time(NULL));
-	printf("Simulation timestep, dt=%f\n", *get_dt());
-	if (*get_ev_collisions() > 0) {
-		printf("Ev-Ev collisions are enabled\n");
-	}
-	else {
-		printf("Ev-Ev collisions are disabled\n");
-	}
-	if (*get_boundaries() > 0) {
-		printf("Collision with the boundaries are enabled\n");
-	}
-	else {
-		printf("Collision with the boundaries are disabled\n");
-	}
-	if (*get_drag() > 0) {
-		printf("Drag is enabled\n");
-	}
-	else {
-		printf("Drag is disabled\n");
-	}
-	if (*get_brownian_motion_1d() > 0) {
-		printf("brownian_motion_1d is enabled\n");
-	}
-	else {
-		printf("brownian_motion_1d is disabled\n");
-	}
-	if (*get_brownian_motion_2d() > 0) {
-		printf("brownian_motion_2d is enabled\n");
-		float bm_factor =  *get_dt() / *get_bm_frequency();
-		set_bm_factor(&bm_factor);
-		printf("brownian motion frequency in seconds: %f, factor:%f\n", *get_bm_frequency(), *get_bm_factor());
-	}
-	else {
-		printf("brownian_motion_2d is disabled\n");
-	}
-	if (*get_apoptosis() > 0) {
-		printf("Apoptosis is enabled, threshold: %f\n", *get_apoptosis_threshold());
-	} else {
-		printf("Apoptosis is disabled\n");
-	}
-	if (*get_ev_secretion() > 0) {
-		printf("EV secretion is enabled, interval %f seconds, p. threshold of %f\n",
-			*get_ev_secretion_interval(), *get_ev_secretion_threshold());
-		printf("Min radius: %d, Max radius: %d\n", *get_min_ev_radius(), *get_max_ev_radius());
-	}
-	else {
-		printf("EV secretion is disabled\n");
-	}
-	float val0 = 6 * M_PI * *get_const_water_dynamic_viscosity_pas();
-	set_const_6_pi_dynamic_viscosity(&val0);
-	printf("set_const_6_pi_dynamic_viscosity: %f\n", val0);
-	float val1 = 6 * M_PI * *get_const_water_kinematic_viscosity_kg_ums();
-	set_const_6_pi_kinematic_viscosity(&val1);
-	printf("set_const_6_pi_kinematic_viscosity: %f\n", val1);
-	float val2 = *get_const_Boltzmann() * *get_const_Temperature_K();
-	printf("boltzmann: %.35f\n", *get_const_Boltzmann());
-	set_const_boltzmann_x_temp(&val2);
-	printf("set_const_boltzmann_x_temp: %.30f\n", val2);
-}
-
-__FLAME_GPU_STEP_FUNC__ int increase_iteration(){
-	unsigned int iter = (*get_iteration() + 1);
-	set_iteration(&iter);
-	return 0;
-}
-
-/**
- * output_data FLAMEGPU Agent Function
- * Automatically generated using functions.xslt
- * @param agent Pointer to an agent structure of type xmachine_memory_EV. Represents an agent instance, can be modified directly.
- * @param location_messages Pointer to output message list of type xmachine_message_location_list.
- */
-__FLAME_GPU_FUNC__ int output_location_ev_default(xmachine_memory_EV* agent, xmachine_message_location_ev_default_list* location_messages){
-	add_location_ev_default_message(location_messages, agent->id, agent->x, agent->y,
-		agent->z, agent->radius_um, agent->mass_ag, 
-		agent->vx, agent->vy);
-    return 0;
-}
-__FLAME_GPU_FUNC__ int output_location_ev_initial(xmachine_memory_EV* agent, xmachine_message_location_ev_initial_list* location_messages) {
-	add_location_ev_initial_message(location_messages, agent->id, agent->x, agent->y,
-			agent->z, agent->radius_um, agent->mass_ag, agent->vx, agent->vy);
-	return 0;
-}
-__FLAME_GPU_FUNC__ int output_location_ev_bounced(xmachine_memory_EV* agent, 
-	xmachine_message_location_ev_bounced_list* location_messages) {
-	add_location_ev_bounced_message(location_messages, agent->id, agent->x, agent->y,
-			agent->z, agent->radius_um, agent->mass_ag, agent->vx, agent->vy);
-	return 0;
-}
-
-/**
-* output_data FLAMEGPU Agent Function
-* Automatically generated using functions.xslt
-* @param agent Pointer to an agent structure of type xmachine_memory_EV. This represents a single agent instance and can be modified directly.
-* @param location_messages Pointer to output message list of type xmachine_message_location_list. Must be passed as an argument to the add_location_message function ??.
-*/
-__FLAME_GPU_FUNC__ int output_ciliary_cell_location(xmachine_memory_CiliaryCell* agent, xmachine_message_ciliary_cell_location_list* location_messages) {
-
-	add_ciliary_cell_location_message(location_messages, agent->id, agent->x, agent->y, 0,
-		agent->p1_x, agent->p1_y, agent->p2_x, agent->p2_y, agent->direction_x, agent->direction_y,
-		agent->direction_x_unit, agent->direction_y_unit, agent->direction_length, 
-		agent->normal_x, agent->normal_y, agent->unit_normal_x, agent->unit_normal_y, agent->normal_length
-	);
-	return 0;
-}
-
-__FLAME_GPU_FUNC__ int output_secretory_cell_location(xmachine_memory_SecretoryCell* agent, xmachine_message_secretory_cell_location_list* location_messages) {
-	add_secretory_cell_location_message(location_messages, agent->id, agent->x, agent->y, 0,
-		agent->p1_x, agent->p1_y, agent->p2_x, agent->p2_y, agent->direction_x, agent->direction_y,
-		agent->direction_x_unit, agent->direction_y_unit, agent->direction_length, 
-		agent->normal_x, agent->normal_y, agent->unit_normal_x, agent->unit_normal_y, agent->normal_length
-	);
-	return 0;
-}
-
 __device__ float dotprod(float x1, float y1, float x2, float y2) {
 	return x1*x2 + y1*y2;
 }
@@ -248,8 +122,19 @@ __device__ float2 float2_project(float2 v1, float2 v2) {
 	float mag = projection(v1.x, v1.y, v2.x, v2.y);
 	return parallel(v2.x, v2.y, mag);
 }
+
 __device__ float2 project(float v1x, float v1y, float v2x, float v2y) {
 	return float2_project(make_float2(v1x, v1y), make_float2(v2x, v2y));
+}
+
+/*
+	Compute the distance between two agents using the coordinates of their centers
+*/
+__device__ float euclidean_distance(xmachine_memory_EV* agent, 
+	float message_x, float message_y)
+{
+	return sqrtf((agent->x - message_x) * (agent->x - message_x) +
+		(agent->y - message_y) * (agent->y - message_y));
 }
 
 __FLAME_GPU_STEP_FUNC__  void checkStopConditions() {
@@ -261,98 +146,326 @@ __FLAME_GPU_STEP_FUNC__  void checkStopConditions() {
 		float x = get_EV_default_variable_x(i);
 		float y = get_EV_default_variable_y(i);
 		int id = get_EV_default_variable_id(i);
-		int nanInfVel = get_EV_default_variable_debugNanInfVelocity(i);
-		int nanInfLoc = get_EV_default_variable_debugNanInfLocation(i);
-		int nanInfValue = get_EV_default_variable_debugNanInfValue(i);
-
-		float div0 = get_EV_default_variable_debugDiv0(i);
-
 		if(!isfinite(x) || !isfinite(y)) {
 			printf("EV id:%d has NaN or Inf coordinates.\n", id);
-			++exiting_early;
-		}
-		if(nanInfVel != 0){
-			printf("EV id:%d produced NaN or Inf velocity at %d.\n", id, nanInfVel);
-			++exiting_early;
-		}
-		if(nanInfLoc != 0){
-			printf("EV id:%d produced NaN or Inf location at %d.\n", id, nanInfLoc);
-			++exiting_early;
-		}
-		if(div0 != 0){
-			printf("EV id:%d did DIV/0 in %f.\n", id, div0);
-			++exiting_early;
-		}
-		if(nanInfValue != 0){
-			printf("NaN or Inf value produced for EV id:%d at %d.\n", id, nanInfValue);
 			++exiting_early;
 		}
 	}
 }
 
 __device__ int checkNanInfVelocity(xmachine_memory_EV* agent, float caller_id){
-    if(agent->debugNanInfVelocity == 0){
-		if(!isfinite(agent->vx)){
-			agent->debugNanInfVelocity = caller_id;
-		}
-	}
-	if(agent->debugNanInfVelocity == 0){
-        if(!isfinite(agent->vy)){
-            agent->debugNanInfVelocity = caller_id + 1;
-        }
-    }
     return 0;
 }
 
 __device__ int checkNanInfLocation(xmachine_memory_EV* agent, float caller_id){
-    if(agent->debugNanInfLocation == 0){
-        if(!isfinite(agent->x)){
-            agent->debugNanInfLocation = caller_id;
-        }
-	}
-	if(agent->debugNanInfLocation == 0){
-        if(!isfinite(agent->y)){
-            agent->debugNanInfLocation = caller_id + 1;
-        }
-    }
     return 0;
 }
 
-__device__ int checkDivZero(xmachine_memory_EV* agent, float value, float caller_id) {
-	if(agent->debugDiv0 == 0) {
-		if(abs(value) < 1e-6) {
-			agent->debugDiv0 = caller_id;
-		}
-	}
-	return 0;
-}
-
-__device__ int checkDivZero(xmachine_memory_EV* agent, float2 value, float caller_id){
-	if(agent->debugDiv0 == 0) {
-		if(abs(value.x) < 1e-6 || abs(value.y) < 1e-6) {
-			agent->debugDiv0 = caller_id;
-		}
-	}
-	return 0;
-}
-
 __device__ int checkValueNanInf(xmachine_memory_EV* agent, float value, float caller_id){
-	if(agent->debugNanInfValue == 0){
-		if(!isfinite(value)) {
-			agent->debugNanInfValue = caller_id;
-		}
-	}
 	return 0;
 }
 
 __device__ int checkValueNanInf(xmachine_memory_EV* agent, float2 value, float caller_id){
-	if(agent->debugNanInfValue == 0){
-		if(!isfinite(value.x)) {
-			agent->debugNanInfValue = caller_id;
-		} else if(!isfinite(value.y)) {
-			agent->debugNanInfValue = caller_id + 1;
-		}
+	return 0;
+}
+
+__FLAME_GPU_INIT_FUNC__ void precompute_values() {
+	//srand(time(NULL));
+	printf("Simulation timestep, dt=%f\n", *get_dt());
+	if (*get_ev_collisions() > 0) {
+		printf("Ev-Ev collisions are enabled\n");
 	}
+	else {
+		printf("Ev-Ev collisions are disabled\n");
+	}
+	if (*get_boundaries() > 0) {
+		printf("Collision with the boundaries are enabled\n");
+	}
+	else {
+		printf("Collision with the boundaries are disabled\n");
+	}
+	
+	if (*get_brownian_motion_1d() > 0) {
+		printf("brownian_motion_1d is enabled\n");
+	}
+	else {
+		printf("brownian_motion_1d is disabled\n");
+	}
+	if (*get_brownian_motion_2d() > 0) {
+		printf("brownian_motion_2d is enabled\n");
+		float bm_factor =  *get_dt() / *get_bm_frequency();
+		set_bm_factor(&bm_factor);
+		printf("brownian motion frequency in seconds: %f, factor:%f\n", *get_bm_frequency(), *get_bm_factor());
+	}
+	else {
+		printf("brownian_motion_2d is disabled\n");
+	}
+	if (*get_apoptosis() > 0) {
+		printf("Apoptosis is enabled, threshold: %f\n", *get_apoptosis_threshold());
+	} else {
+		printf("Apoptosis is disabled\n");
+	}
+	if (*get_ev_secretion() > 0) {
+		printf("EV secretion is enabled, interval %f seconds, p. threshold of %f\n",
+			*get_ev_secretion_interval(), *get_ev_secretion_threshold());
+		printf("Min radius: %d, Max radius: %d\n", *get_min_ev_radius(), *get_max_ev_radius());
+	}
+	else {
+		printf("EV secretion is disabled\n");
+	}
+	float val0 = 6 * M_PI * *get_const_water_dynamic_viscosity_pas();
+	set_const_6_pi_dynamic_viscosity(&val0);
+	printf("set_const_6_pi_dynamic_viscosity: %f\n", val0);
+	float val1 = 6 * M_PI * *get_const_water_kinematic_viscosity_kg_ums();
+	set_const_6_pi_kinematic_viscosity(&val1);
+	printf("set_const_6_pi_kinematic_viscosity: %f\n", val1);
+	float val2 = *get_const_Boltzmann() * *get_const_Temperature_K();
+	printf("boltzmann: %.35f\n", *get_const_Boltzmann());
+	set_const_boltzmann_x_temp(&val2);
+	printf("set_const_boltzmann_x_temp: %.30f\n", val2);
+	// min x, min y, max x, max y
+	fvec4 minmax = fvec4(
+		fmin(fmin(min_CiliaryCell_c_default_p1_x_variable(), min_CiliaryCell_c_default_p2_x_variable()),
+			fmin(min_SecretoryCell_s_default_p1_x_variable(), min_SecretoryCell_s_default_p2_x_variable())) - 1,
+		fmin(fmin(min_CiliaryCell_c_default_p1_y_variable(), min_CiliaryCell_c_default_p2_y_variable()),
+			fmin(min_SecretoryCell_s_default_p1_y_variable(), min_SecretoryCell_s_default_p2_y_variable())) - 1,
+		fmax(fmax(max_CiliaryCell_c_default_p1_x_variable(), max_CiliaryCell_c_default_p2_x_variable()),
+			fmax(max_SecretoryCell_s_default_p1_x_variable(), max_SecretoryCell_s_default_p2_x_variable())) + 1,
+		fmax(fmax(max_CiliaryCell_c_default_p1_y_variable(), max_CiliaryCell_c_default_p2_y_variable()),
+			fmax(max_SecretoryCell_s_default_p1_y_variable(), max_SecretoryCell_s_default_p2_y_variable())) + 1
+		);
+	set_minMaxCoords(&minmax);
+	printf("Limits on x:[%.2f, %.2f], y:[%.2f, %.2f]\n", minmax.x, minmax.z, minmax.y, minmax.w);
+}
+
+__FLAME_GPU_STEP_FUNC__ int increase_iteration(){
+	unsigned int iter = (*get_iteration() + 1);
+	set_iteration(&iter);
+	return 0;
+}
+
+/*
+	EVs are subject to an appoptotic attempt per second during their lifespan.
+	The apoptosis_threshold reflects the probability of the EV dying at a given time
+*/
+__FLAME_GPU_FUNC__ int ev_default_apoptosis(xmachine_memory_EV* agent, RNG_rand48* rand48){
+	
+	if(agent->apoptosis_timer > apoptosis_frequency){
+		agent->apoptosis_timer = 0;
+		if(rnd<CONTINUOUS>(rand48) < apoptosis_threshold){
+			return 1;
+		}
+	} else {
+		agent->apoptosis_timer += dt;
+	}
+	return 0;
+}
+
+/*
+	EVs in initial state have the 'time_in_initial_state' extended when colliding with
+	an EV in default state. However, very long extensions can lead to undefined behaviour.
+	To prevent this, the max extension allowed is 2x time in initial state.
+	Extensions longer than this value lead to apoptosis.
+*/
+__FLAME_GPU_FUNC__ int ev_initial_apoptosis(xmachine_memory_EV* agent){
+	agent->becameAt.y = iteration;
+	agent->becameAt.z = 5;
+	return 0;
+}
+
+
+/*
+	Uses the Box-Mueller transform to generate a pair of normally distributed random numbers
+	by sampling from two uniformly distributed RNG.
+	In the original algorithm, the sampled values are transformed into cartesian coordinates,
+	here they become the new velocity for the next step
+	Due to limitations in FlameGPU, we sample both continuos numbers from the same RNG.
+*/
+__FLAME_GPU_FUNC__ int brownian_movement_1d(xmachine_memory_EV* agent, RNG_rand48* rand48) {	
+	agent->bm_r.x = sqrtf(-2.0 * log(rnd<CONTINUOUS>(rand48)));
+	agent->bm_r.y = agent->bm_r.x * agent->mdd125 * bm_factor;
+	
+	// the product of agent->bm_r * (cos|sin)(theta) becomes the displacement factor to use in this iteration
+	agent->vx = agent->bm_r.y * cospif(2 * rnd<CONTINUOUS>(rand48));
+	
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
+	float theta;
+	float u = sqrtf(-2*log(rnd<CONTINUOUS>(rand48)));
+	agent->bm_r.x = u < -1.0f ? -1.0f : u > 1.0f ? 1.0f : u;
+	//agent->bm_r.x = sqrtf(-2*log(rnd<CONTINUOUS>(rand48)));
+	agent->bm_r.y = agent->bm_r.x * agent->mdd125 * bm_factor;
+	theta = 2 * rnd<CONTINUOUS>(rand48);
+	
+	agent->bm_vx = (agent->bm_r.y * cospif(theta));
+	agent->bm_vy = (agent->bm_r.y * sinpif(theta));
+	agent->vx = agent->bm_vx;
+	agent->vy = agent->bm_vy;
+	
+	agent->last_bm = 0;
+	return 0;
+}
+
+__device__ void ev_reset(xmachine_memory_EV* agent){
+	agent->closest_ciliary_cell_id = -1;
+	agent->closest_ciliary_cell_distance = 100;
+	agent->closest_secretory_cell_id = -1;
+	agent->closest_secretory_cell_distance = 100;
+	agent->closest_ev_default_id = 0;
+	agent->closest_ev_default_distance = 100;
+	agent->closest_ev_initial_id = 0;
+	agent->closest_ev_initial_distance = 100;
+}
+
+__device__ float displacement_sq(xmachine_memory_EV* ag){
+	return (ag->x - ag->x_1) * (ag->x - ag->x_1) + (ag->y - ag->y_1) * (ag->y - ag->y_1);
+}
+
+__FLAME_GPU_FUNC__ int is_OOB(xmachine_memory_EV* ag){
+	// 1000x1000 = 2,000,000, 3000x4000=25,000,000
+	if (ag->x < minMaxCoords.x || ag->x > minMaxCoords.z || ag->y < minMaxCoords.y || ag->y > minMaxCoords.w)
+		return 1;
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int reset_state(xmachine_memory_EV* agent) {
+	ev_reset(agent);
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int reset_state_initial(xmachine_memory_EV* agent) {
+	ev_reset(agent);
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int check_displacement_cs(xmachine_memory_EV* agent){
+	agent->displacementSq = displacement_sq(agent);
+	return 0;
+}
+__FLAME_GPU_FUNC__ int check_displacement_cc(xmachine_memory_EV* agent){
+	agent->displacementSq = displacement_sq(agent);
+	return 0;
+}
+__FLAME_GPU_FUNC__ int check_displacement_cd(xmachine_memory_EV* agent){
+	agent->displacementSq = displacement_sq(agent);
+	return 0;
+}
+__FLAME_GPU_FUNC__ int check_displacement_ci(xmachine_memory_EV* agent){
+	agent->displacementSq = displacement_sq(agent);
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int reset_state_collision_secretory(xmachine_memory_EV* agent) {
+	ev_reset(agent);
+	return 0;
+}
+__FLAME_GPU_FUNC__ int reset_state_collision_ciliary(xmachine_memory_EV* agent) {
+	ev_reset(agent);
+	return 0;
+}
+__FLAME_GPU_FUNC__ int reset_state_collision_default(xmachine_memory_EV* agent) {
+	ev_reset(agent);
+	return 0;
+}
+__FLAME_GPU_FUNC__ int reset_state_collision_initial(xmachine_memory_EV* agent) {
+	ev_reset(agent);
+	return 0;
+}
+// These should not die but stay disabled
+__FLAME_GPU_FUNC__ int disable_EV_cs(xmachine_memory_EV* agent) {
+	agent->becameAt.y = iteration;
+	agent->becameAt.z = 1;
+	return 0;
+}
+__FLAME_GPU_FUNC__ int disable_EV_cc(xmachine_memory_EV* agent) {
+	agent->becameAt.y = iteration;
+	agent->becameAt.z = 2;
+	return 0;
+}
+__FLAME_GPU_FUNC__ int disable_EV_cd(xmachine_memory_EV* agent) {
+	agent->becameAt.y = iteration;
+	agent->becameAt.z = 3;
+	return 0;
+}
+__FLAME_GPU_FUNC__ int disable_EV_ci(xmachine_memory_EV* agent) {
+	agent->becameAt.y = iteration;
+	agent->becameAt.z = 4;
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int initial_to_default(xmachine_memory_EV* agent) {
+	agent->apoptosis_timer = 0;
+	agent->becameAt.x = iteration;
+	return 0;
+}
+
+/**
+ * move FLAMEGPU Agent Function
+ * Automatically generated using functions.xslt
+ * @param agent Pointer to an agent structure of type xmachine_memory_EV. This represents a single agent instance and can be modified directly.
+ 
+ */
+ __device__ void moveEv(xmachine_memory_EV* agent){
+	agent->x_1 = agent->x;
+	agent->y_1 = agent->y;
+
+	agent->x += agent->vx;
+	agent->y += agent->vy;
+	agent->age += dt;
+ }
+__FLAME_GPU_FUNC__ int moveDefault(xmachine_memory_EV* agent){
+	moveEv(agent);
+	agent->last_bm += dt;
+    return 0;
+}
+__FLAME_GPU_FUNC__ int moveInitial(xmachine_memory_EV* agent) {
+	moveEv(agent);
+	return 0;
+}
+
+/**
+ * output_data FLAMEGPU Agent Function
+ * Automatically generated using functions.xslt
+ * @param agent Pointer to an agent structure of type xmachine_memory_EV. Represents an agent instance, can be modified directly.
+ * @param location_messages Pointer to output message list of type xmachine_message_location_list.
+ */
+__FLAME_GPU_FUNC__ int output_location_ev_default(xmachine_memory_EV* agent, xmachine_message_location_ev_default_list* location_messages){
+	add_location_ev_default_message(location_messages, agent->id, agent->x, agent->y,
+		agent->z, agent->radius_um, agent->mass_ag, 
+		agent->vx, agent->vy);
+    return 0;
+}
+__FLAME_GPU_FUNC__ int output_location_ev_initial(xmachine_memory_EV* agent, xmachine_message_location_ev_initial_list* location_messages) {
+	add_location_ev_initial_message(location_messages, agent->id, agent->x, agent->y,
+			agent->z, agent->radius_um, agent->mass_ag, agent->vx, agent->vy);
+	return 0;
+}
+/*
+	__FLAME_GPU_FUNC__ int output_location_ev_bounced(xmachine_memory_EV* agent, 
+		xmachine_message_location_ev_bounced_list* location_messages) {
+		add_location_ev_bounced_message(location_messages, agent->id, agent->x, agent->y,
+				agent->z, agent->radius_um, agent->mass_ag, agent->vx, agent->vy);
+		return 0;
+	}
+*/
+__FLAME_GPU_FUNC__ int output_ciliary_cell_location(xmachine_memory_CiliaryCell* agent, xmachine_message_ciliary_cell_location_list* location_messages) {
+
+	add_ciliary_cell_location_message(location_messages, agent->id, agent->x, agent->y, 0,
+		agent->p1_x, agent->p1_y, agent->p2_x, agent->p2_y, agent->direction_x, agent->direction_y,
+		agent->direction_x_unit, agent->direction_y_unit, agent->direction_length, 
+		agent->normal_x, agent->normal_y, agent->unit_normal_x, agent->unit_normal_y, agent->normal_length
+	);
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int output_secretory_cell_location(xmachine_memory_SecretoryCell* agent, xmachine_message_secretory_cell_location_list* location_messages) {
+	add_secretory_cell_location_message(location_messages, agent->id, agent->x, agent->y, 0,
+		agent->p1_x, agent->p1_y, agent->p2_x, agent->p2_y, agent->direction_x, agent->direction_y,
+		agent->direction_x_unit, agent->direction_y_unit, agent->direction_length, 
+		agent->normal_x, agent->normal_y, agent->unit_normal_x, agent->unit_normal_y, agent->normal_length
+	);
 	return 0;
 }
 
@@ -373,218 +486,6 @@ __device__ float2 perpendicular_distance_from_ev_to_wall(float4 ev_wall, float p
 		ev_wall.x + cell_direction_x_unit * -proj1,
 		ev_wall.y + cell_direction_y_unit * -proj1
 	);
-}
-
-__device__ int drag_force_bm(xmachine_memory_EV* agent) {
-	float vx = agent->vx;
-	float vy = agent->vy;
-
-	float vel_mag_ums = vlength(vx, vy); // in (um/s)
-	if(vel_mag_ums < 1e-8){
-		// Drag cannot produce negative velocity values
-		agent->vx = 0;
-		agent->vy = 0;
-		if (agent->debugDragVel0At != -1){
-			agent->debugDragVel0At = agent->age;
-		}
-	} else {
-		float2 vel_unit = make_float2(vx / vel_mag_ums, vy / vel_mag_ums);
-		// kinematic viscosity in kg/um.s
-		float factor = const_6_pi_kinematic_viscosity * agent->radius_um * vel_mag_ums;
-		float2 vel = float2_scale(vel_unit, factor);
-		agent->vx = vel.x;
-		agent->vy = vel.y;
-	}
-	return 0;
-}
-
-__device__ int drag_force(xmachine_memory_EV* agent) {
-	float vel_mag_ums = vlength(agent->vx, agent->vy); // in (um/s)
-	if(vel_mag_ums < 1e-8){
-		// Drag cannot produce negative velocity values
-		agent->vx = 0;
-		agent->vy = 0;
-		if (agent->debugDragVel0At != -1){
-			agent->debugDragVel0At = agent->age;
-		}
-	} else {
-		float2 direction = make_float2(agent->vx / vel_mag_ums, agent->vy / vel_mag_ums);
-		// kinematic viscosity in kg/um.s = 18906.105469
-		float factor = const_6_pi_kinematic_viscosity * agent->radius_um * vel_mag_ums;
-
-		float2 vel = float2_scale(direction, factor);
-		agent->vx = vel.x;
-		agent->vy = vel.y;
-		checkNanInfVelocity(agent, 1300);
-	}
-	return 0;
-}
-
-// solves direct collisions between EV and segments
-__device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_dir_x, 
-	float cell_dir_y, float cell_direction_length, float perp_dist_x, float perp_dist_y,
-	float cell_unit_normal_x, float cell_unit_normal_y, float caller_id) {
-	
-	// We compute the angle between velocity and wall direction based on
-	// the cosine of the angle betwen two vectors which is the quotient of the
-	// dot product of the vectors and the product of their magnitudes
-	// 1. angle between velocity and wall direction
-	float dp = dotprod(agent->vx, agent->vy, cell_dir_x, cell_dir_y);
-	float lengths_product = (vlength(agent->vx, agent->vy) * cell_direction_length);
-	float quotient = dp / lengths_product;
-	
-	// Due to rounding errors, the quotient can have values out of the
-	// expected range for acosf() which produces NaN values
-	if(quotient > 1.0) { quotient = 1.0; }
-	else if (quotient < -1.0) { quotient = -1.0; }
-	float angle = acosf(quotient);
-
-	// 2. reposition object
-	float normal_x = cell_unit_normal_x;
-	float normal_y = cell_unit_normal_y;
-
-	// 3. start by computing deltaS
-	float dist_dp_normal = dotprod(perp_dist_x, perp_dist_y, normal_x, normal_y);
-	float sin_angle = sinf(angle);
-	float deltaS = 0;
-
-	// deltaS matches the value of 'closest_secretory_cell_distance'
-	if (abs(sin_angle) < 1e-6) {
-		// special case, orthogonal collisions produce angle=0, sin_angle=0
-		// the distance to compensate affects only a single axis
-		deltaS = agent->radius_um + dist_dp_normal;
-	} else {
-		deltaS = (agent->radius_um + dist_dp_normal) / sin_angle;
-	}
-
-	// 4. estimate the displacement vector needed for the correction
-	float2 displ = parallel(agent->vx, agent->vy, deltaS);
-
-	// 5. update position by subtracting the displacement
-	agent->x -= displ.x;
-	agent->y -= displ.y;
-
-	// 6. decompose the velocity
-	// velocity vector component perpendicular to wall just before impact
-	float velocityProjection = projection(agent->vx, agent->vy, perp_dist_x, perp_dist_y);
-	float2 normalVelocity = parallel(perp_dist_x, perp_dist_y, velocityProjection);
-	
-	// velocity vector component parallel to wall; unchanged by impact
-	float tangentVelocity_x = agent->vx - normalVelocity.x;
-	float tangentVelocity_y = agent->vy - normalVelocity.y;
-	
-	// velocity vector component perpendicular to wall just after impact
-	float new_vx = tangentVelocity_x + (-normalVelocity.x);
-	float new_vy = tangentVelocity_y + (-normalVelocity.y);
-	if (isfinite(new_vx) && isfinite(new_vy)){
-		agent->vx = new_vx;
-		agent->vy = new_vy;
-	} 
-	return 0;
-}
-
-__device__  int solve_segment_end_point_collision(xmachine_memory_EV* agent, 
-	float wall_pt_x, float wall_pt_y, float caller_id
-) {
-	// bounce off endpoint wall_p
-	float distp_x = agent->x - wall_pt_x;
-	float distp_y = agent->y - wall_pt_y;
-
-	// move particle so that it just touches the endpoint			
-	float L = agent->radius_um - vlength(distp_x, distp_y);
-	float vrel = vlength(agent->vx, agent->vy);
-	agent->x += agent->vx * (-L / vrel);
-	agent->y += agent->vy * (-L / vrel);
-
-	// normal velocity vector just before the impact
-	float2 normalVelo = project(agent->vx, agent->vy, distp_x, distp_y);
-	// tangential velocity vector
-	float tangentVelo_x = agent->vx - normalVelo.x;
-	float tangentVelo_y = agent->vy - normalVelo.y;
-	// normal velocity vector after collision
-
-	//// final velocity vector after collision
-	agent->vx = -1.0 * normalVelo.x + tangentVelo_x;
-	agent->vy = -1.0 * normalVelo.y + tangentVelo_y;
-	return 0;
-}
-
-/**
-	Collision resolution algorithm modified from Physics for Javascript Games, Animation, and Simulation Ch, 11
-	ID 3000
-*/
-__FLAME_GPU_FUNC__ int secretory_cell_collision_resolution(xmachine_memory_EV* agent,
-	xmachine_message_secretory_cell_collision_list* secretory_cell_collision_messages,
-	xmachine_message_secretory_cell_collision_PBM* partition_matrix){
-
-	xmachine_message_secretory_cell_collision* message = get_first_secretory_cell_collision_message(secretory_cell_collision_messages, partition_matrix, agent->x, agent->y, agent->z);
-
-	while (message){
-		// we verify the ev_id in the message matches this agent's id
-		if (message->ev_id == agent->id) {
-			float4 ev_wall_vectors = vectors_from_ev_to_wall_endpoints(agent, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
-			float2 projections = project_vectors_onto_wall(ev_wall_vectors, message->cell_direction_x, message->cell_direction_y);
-			float2 perp_dist = perpendicular_distance_from_ev_to_wall(ev_wall_vectors, projections.x, message->cell_direction_x_unit, message->cell_direction_y_unit);
-
-			bool test_needed = ((abs(projections.x) < message->cell_direction_length)
-					&& (abs(projections.y) < message->cell_direction_length));
-			if (((perp_dist.x * perp_dist.x + perp_dist.y * perp_dist.y) < agent->radius_um_sq) && test_needed) {
-				solve_segment_collision(agent, message->cell_direction_x,
-					message->cell_direction_y, message->cell_direction_length,
-					perp_dist.x, perp_dist.y,
-					message->unit_normal_x, message->unit_normal_y, 3100.0);
-			}
-			else if (abs(ev_wall_vectors.x * ev_wall_vectors.x + ev_wall_vectors.y * ev_wall_vectors.y) < agent->radius_um_sq) {
-				// collision with 1st end point
-				solve_segment_end_point_collision(agent, message->p1_x, message->p1_y, 3200.0);
-			}
-			else if (abs(ev_wall_vectors.z * ev_wall_vectors.z + ev_wall_vectors.w * ev_wall_vectors.w) < agent->radius_um_sq) {
-				// collision with 2nd end point
-				solve_segment_end_point_collision(agent, message->p2_x, message->p2_y, 3300.0);
-			}
-		}
-		message = get_next_secretory_cell_collision_message(message, secretory_cell_collision_messages, partition_matrix);
-	}
-	return 0;
-}
-
-/**
-	This function resolves a single collision between an EV and a ciliary cell
-	After this, the EV has new values for x, y, vx, and vy, compensated for the collision
-	ID 4000
-*/
-__FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* agent, 
-	xmachine_message_ciliary_cell_collision_list* ciliary_cell_collision_messages,
-	xmachine_message_ciliary_cell_collision_PBM* partition_matrix) {
-
-	xmachine_message_ciliary_cell_collision* message = get_first_ciliary_cell_collision_message(ciliary_cell_collision_messages, partition_matrix, agent->x, agent->y, agent->z);
-	//float acceleration_x = 0, acceleration_y = 0;
-	while (message) {
-		// we verify the ev_id in the message matches this agent's id
-		if (message->ev_id == agent->id) {
-			float4 ev_wall_vectors = vectors_from_ev_to_wall_endpoints(agent, message->p1_x, message->p1_y, message->p2_x, message->p2_y);
-			float2 projections = project_vectors_onto_wall(ev_wall_vectors, message->cell_direction_x, message->cell_direction_y);
-			float2 perp_dist = perpendicular_distance_from_ev_to_wall(ev_wall_vectors, projections.x, message->cell_direction_x_unit, message->cell_direction_y_unit);
-
-			bool test_needed = (abs(projections.x) < message->cell_direction_length) && (abs(projections.y) < message->cell_direction_length);
-			bool tunneling = false;
-			if (( (perp_dist.x * perp_dist.x + perp_dist.y * perp_dist.y) < agent->radius_um_sq || tunneling) && test_needed) {
-				solve_segment_collision(agent, message->cell_direction_x,
-					message->cell_direction_y, message->cell_direction_length,
-					perp_dist.x, perp_dist.y, message->unit_normal_x, message->unit_normal_y, 4100.0);
-			}
-			else if (abs(ev_wall_vectors.x * ev_wall_vectors.x + ev_wall_vectors.y * ev_wall_vectors.y) < agent->radius_um_sq) {
-				// collision with 1st end point
-				solve_segment_end_point_collision(agent, message->p1_x, message->p1_y, 4200.0);
-			}
-			else if (abs(ev_wall_vectors.z * ev_wall_vectors.z + ev_wall_vectors.w * ev_wall_vectors.w) < agent->radius_um_sq) {
-				// collision with 2nd end point
-				solve_segment_end_point_collision(agent, message->p2_x, message->p2_y, 4300.0);
-			}
-		}
-		message = get_next_ciliary_cell_collision_message(message, ciliary_cell_collision_messages, partition_matrix);
-	}
-	return 0;
 }
 
 /**
@@ -660,31 +561,23 @@ __device__ float4 point_to_line_segment_distance(float x, float y, float x1, flo
 		agent->closest_secretory_cell_id = -1;
 		agent->closest_secretory_cell_distance = -1.0f;
 */
-__FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, xmachine_message_secretory_cell_location_list* location_messages,
-	xmachine_message_secretory_cell_location_PBM* partition_matrix, xmachine_message_secretory_cell_collision_list* secretory_cell_collision_messages)
+__FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
+xmachine_message_secretory_cell_location_list* location_messages,
+	xmachine_message_secretory_cell_location_PBM* partition_matrix)
 {
-	int closest_cell = -2;
-	float closest_cell_distance = 100.f;
-	
 	float4 res;
-	float4 wall_direction;
-	float3 wall_normal;
-	float2 wall_unit_normal;
-	float4 wall_pts;
-	float wall_direction_length;
-
 	xmachine_message_secretory_cell_location* message = get_first_secretory_cell_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
-
+	agent->closest_secretory_cell_distance = agent->radius_um;
 	while (message) {
 		// we only check for collisions if the EV: -is displacing in opposite or perpendicular direction to the wall
-		float dotProduct = dotprod(agent->vx, agent->vy, message->unit_normal_x, message->unit_normal_y);
+		//float dotProduct =;
 
 		// the dot product is:
 		//	<0 for vectors in opposing directions
 		//  =0 for those perpendicular to each other
 		// If unormal and direction are perpendicular to each other
 		// the displacement may be parallel or collinear to the wall
-		if (dotProduct <= 0) {
+		if (dotprod(agent->vx, agent->vy, message->unit_normal_x, message->unit_normal_y) <= 0) {
 			// for each agent's new position and a cell compute:
 			// x - ratio of the segment where the position is projecting or 0,1 if outside
 			// y - distance between position and closest point on the segment
@@ -693,331 +586,45 @@ __FLAME_GPU_FUNC__ int test_secretory_cell_collision(xmachine_memory_EV* agent, 
 				message->p1_x, message->p1_y, message->p2_x, message->p2_y);
 
 			// if the ev new position is projecting over the segment
-			// and the distance to the segment < 1.2 x radius
-			if (res.y < agent->radius_um_120)
+			if (res.y < agent->closest_secretory_cell_distance)
 			{
-				if (res.y < closest_cell_distance)
-				{
-					closest_cell = message->id;
-					closest_cell_distance = res.y;
-					
-					// wall direction values
-					wall_direction.x = message->direction_x;
-					wall_direction.y = message->direction_y;
-					// wall direction unit values
-					wall_direction.z = message->direction_x_unit;
-					wall_direction.w = message->direction_y_unit;
-					wall_direction_length = message->direction_length;
-					// wall normal values
-					wall_normal.x = message->normal_x;
-					wall_normal.y = message->normal_y;
-					wall_normal.z = message->normal_length;
-					// wall unit normal values
-					wall_unit_normal.x = message->unit_normal_x;
-					wall_unit_normal.y = message->unit_normal_y;
-					
-					wall_pts.x = message->p1_x;
-					wall_pts.y = message->p1_y;
-					wall_pts.z = message->p2_x;
-					wall_pts.w = message->p2_y;
-				}
+				agent->closest_secretory_cell_id = message->id;
+				agent->closest_secretory_cell_distance = res.y;
 			}
 		}
 
 		// get the next message
 		message = get_next_secretory_cell_location_message(message, location_messages, partition_matrix);
 	}
-
-	if (closest_cell > -1) { // a potential collision was detected
-		// we store the reference in the agent for future comparisons
-		agent->closest_secretory_cell_id = closest_cell;
-		agent->closest_secretory_cell_distance = closest_cell_distance;
-		agent->last_cell_collision = iteration;
-		// write the corresponding collision_message
-		add_secretory_cell_collision_message(secretory_cell_collision_messages, agent->id,
-			agent->x, agent->y, agent->z,
-			agent->closest_secretory_cell_id, agent->closest_secretory_cell_distance,
-			wall_pts.x, wall_pts.y, wall_pts.z, wall_pts.w, 
-			wall_direction.x, wall_direction.y, wall_direction.z, wall_direction.w, wall_direction_length,
-			wall_normal.x, wall_normal.y, wall_unit_normal.x, wall_unit_normal.y, wall_normal.z);
-	}
 	return 0;
 }
 
 __FLAME_GPU_FUNC__ int test_ciliary_cell_collision(xmachine_memory_EV* agent, 
 xmachine_message_ciliary_cell_location_list* location_messages,
-	xmachine_message_ciliary_cell_location_PBM* partition_matrix, xmachine_message_ciliary_cell_collision_list* ciliary_cell_collision_messages)
+	xmachine_message_ciliary_cell_location_PBM* partition_matrix)
 {
-	int closest_cell = -2;
-	float closest_cell_distance = 100.f;
 	float4 res;
-	float4 wall_direction;
-	float3 wall_normal;
-	float2 wall_unit_normal;
-	float4 wall_pts;
-	float wall_direction_length;
-
 	xmachine_message_ciliary_cell_location* message = get_first_ciliary_cell_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
-
+	agent->closest_ciliary_cell_distance = agent->radius_um;
 	while (message) {
 		// we only check for collisions if the EV: -is displacing in opposite or perpendicular direction to the wall
-		float dotProduct = dotprod(agent->vx, agent->vy, message->unit_normal_x, message->unit_normal_y);
-
 		// the dot product will be negative for vectors in opposite directions and zero for those perpendicular to each other
-		if (dotProduct <= 0) {
+		if (dotprod(agent->vx, agent->vy, message->unit_normal_x, message->unit_normal_y) <= 0) {
 			// get the distance between agent and cell
 			res = point_to_line_segment_distance(agent->x, agent->y,
 				message->p1_x, message->p1_y, message->p2_x, message->p2_y);
 
-			// if the distance to segment < radius
-			if (res.y < agent->radius_um_120)
-			{
-				//printf("ciliary res.x: %f res.y:%f radius_um:%f\n", res.x, res.y, agent->radius_um);
 				// save the reference if this is the first candidate collision
 				// or if the agent is closer to the wall than the previous collision
-				if (res.y < closest_cell_distance)
+				if (res.y < agent->closest_ciliary_cell_distance)
 				{
-					closest_cell = message->id;
-					closest_cell_distance = res.y;
-					// wall direction values
-					wall_direction.x = message->direction_x;
-					wall_direction.y = message->direction_y;
-					// wall direction unit values
-					wall_direction.z = message->direction_x_unit;
-					wall_direction.w = message->direction_y_unit;
-					wall_direction_length = message->direction_length;
-					// wall normal values
-					wall_normal.x = message->normal_x;
-					wall_normal.y = message->normal_y;
-					wall_normal.z = message->normal_length;
-					// wall unit normal values
-					wall_unit_normal.x = message->unit_normal_x;
-					wall_unit_normal.y = message->unit_normal_y;
-
-					wall_pts.x = message->p1_x;
-					wall_pts.y = message->p1_y;
-					wall_pts.z = message->p2_x;
-					wall_pts.w = message->p2_y;
+					agent->closest_ciliary_cell_id = message->id;
+					agent->closest_ciliary_cell_distance = res.y;
 				}
-			}
 		}
 		message = get_next_ciliary_cell_location_message(message, location_messages, partition_matrix);
 	}
-	
-	if (closest_cell > -1) { // a collision was detected
-		// agent is closest to the detected ciliary cell
-		agent->closest_ciliary_cell_id = closest_cell;
-		agent->closest_ciliary_cell_distance = closest_cell_distance;
-		agent->last_cell_collision = iteration;
-		// write the corresponding collision_message
-		add_ciliary_cell_collision_message(ciliary_cell_collision_messages, agent->id,
-			agent->x, agent->y, agent->z,
-			agent->closest_ciliary_cell_id, agent->closest_ciliary_cell_distance,
-			wall_pts.x, wall_pts.y, wall_pts.z, wall_pts.w, wall_direction.x, wall_direction.y,
-			wall_direction.z, wall_direction.w, wall_direction_length,
-			wall_normal.x, wall_normal.y, wall_unit_normal.x, wall_unit_normal.y, wall_normal.z);
-	}
 	return 0;
-}
-
-__FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_default(xmachine_memory_EV* agent,
-	xmachine_message_collision_ev_default_list* collision_messages,
-	xmachine_message_collision_ev_default_PBM* partition_matrix, 
-	xmachine_message_resolved_collision_ev_default_list* resolved_collision_messages
-	){
-	xmachine_message_collision_ev_default* message = get_first_collision_ev_default_message(
-		collision_messages, partition_matrix, agent->x, agent->y, agent->z);
-	while(message){
-		if(agent->id == message->ev1_id){
-			// solve the collision for both agents
-			float2 ev1_loc = make_float2(agent->x, agent->y);
-			float2 ev2_loc = make_float2(message->ev2_x, message->ev2_y);
-
-			float2 ev1_velo = make_float2(agent->vx, agent->vy);
-			float2 ev2_velo = make_float2(message->ev2_vx, message->ev2_vy);
-			float2 distance = make_float2(message->distance_x, message->distance_y);
-			// normal velocity vectors just before the impact
-			float2 normal_velocity1 = float2_project(ev1_velo, distance);
-			float2 normal_velocity2 = float2_project(ev2_velo, distance);
-			// tangential velocity vector
-			float2 tangent_velocity1 = float2_sub(ev1_velo, normal_velocity1);
-			float2 tangent_velocity2 = float2_sub(ev2_velo, normal_velocity2);
-
-			// move particles so that they just touch
-			// If both normal components match, the value of pcd.vrel would be zero
-			float overlap = message->min_distance - message->distance_length;
-			float2 normal_velo_subtracted = float2_sub(normal_velocity1, normal_velocity2);
-			float vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
-			if (vrel == 0 || vrel < 1e-8) {
-				vrel = vlength(ev1_velo.x, ev1_velo.y);	
-			}
-			float correctionFactor = overlap / vrel;
-			float2 ev1_new_loc = add_scaled(ev1_loc, normal_velocity1, -correctionFactor);
-			float2 ev2_new_loc = add_scaled(ev2_loc, normal_velocity2, -correctionFactor);			
-			// normal velocity components after the impact
-			float m1 = agent->mass_ag;
-			float m2 = message->ev2_mass_ag;
-			float u1 = projection(normal_velocity1.x, normal_velocity1.y, distance.x, distance.y);
-			float u2 = projection(normal_velocity2.x, normal_velocity2.y, distance.x, distance.y);
-			float v1 = ((m1 - m2) * u1 + 2 * m2 * u2) / (m1 + m2);
-			float v2 = ((m2 - m1) * u2 + 2 * m1 * u1) / (m1 + m2);
-
-			normal_velocity1 = parallel(distance.x, distance.y, v1);
-			normal_velocity2 = parallel(distance.x, distance.y, v2);
-			float2 ev1_new_v = float2_add(normal_velocity1, tangent_velocity1);
-			float2 ev2_new_v = float2_add(normal_velocity2, tangent_velocity2);
-			
-			// update the current agent
-			agent->precol_x = agent->x;
-			agent->precol_y = agent->y;
-			agent->precol_vx = agent->vx;
-			agent->precol_vy = agent->vy;
-			agent->x = ev1_new_loc.x;
-			agent->y = ev1_new_loc.y;
-			agent->vx = ev1_new_v.x;
-			agent->vy = ev1_new_v.y;
-
-			// create a message with the updated values for the other involved agent
-			add_resolved_collision_ev_default_message(resolved_collision_messages,
-				agent->id, message->x, message->y, message->z, 
-				message->ev2_id, ev2_new_loc.x, ev2_new_loc.y, ev2_new_v.x, ev2_new_v.y
-			);
-		}
-		message = get_next_collision_ev_default_message(message, collision_messages, partition_matrix);
-	}
-	return 0;
-}
-
-__FLAME_GPU_FUNC__ int post_collision_update_ev_default_ev_default(xmachine_memory_EV* agent,
-	xmachine_message_resolved_collision_ev_default_list* resolved_collision_messages,
-	xmachine_message_resolved_collision_ev_default_PBM* partition_matrix
-	){
-		xmachine_message_resolved_collision_ev_default* message = get_first_resolved_collision_ev_default_message(
-			resolved_collision_messages, partition_matrix, agent->x, agent->y, agent->z);
-		while(message){
-			if(agent->id == message->ev2_id){
-				agent->precol_x = agent->x;
-				agent->precol_y = agent->y;
-				agent->precol_vx = agent->vx;
-				agent->precol_vy = agent->vy;
-
-				agent->x = message->ev2_new_x;
-				agent->y = message->ev2_new_y;
-				agent->vx = message->ev2_new_vx;
-				agent->vy = message->ev2_new_vy;
-			}
-			message = get_next_resolved_collision_ev_default_message(
-				message, resolved_collision_messages, partition_matrix);
-		}
-		return 0;
-}
-
-__FLAME_GPU_FUNC__ int placeholder_collision_solver_ev_default_ev_initial(xmachine_memory_EV* agent){
-	return 0;
-}
-
-struct PostCollisionData {
-	float2 correctedLocation;
-	float2 correctionApplied;
-	float2 correctedVelocity;
-	float correctionFactor;
-	float overlap;
-	float vrel;
-};
-/*
-	Computes the new position and velocity after a collision for an agent.
-	It can compute the values for two agents involved, however, we can only update one
-	active agent at a time
-*/
-__device__ struct PostCollisionData solve_collision_ev_default_ev_default(
-		float2 ev1_loc, float2 ev1_velo, float ev1_mass_ag,
-		float2 ev2_loc, float2 ev2_velo, float ev2_mass_ag, 
-		float min_distance, float2 dist, float dist_length) {
-	struct PostCollisionData pcd;
-	// normal velocity vectors just before the impact
-	float2 normal_velocity1 = float2_project(ev1_velo, dist);
-	float2 normal_velocity2 = float2_project(ev2_velo, dist);
-	// tangential velocity vector
-	float2 tangent_velocity1 = float2_sub(ev1_velo, normal_velocity1);
-
-	// move particles so that they just touch
-	// If both normal components match, the value of pcd.vrel would be zero
-	pcd.overlap = min_distance - dist_length;
-	float2 normal_velo_subtracted = float2_sub(normal_velocity1, normal_velocity2);
-	pcd.vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
-	if (pcd.vrel == 0 || pcd.vrel < 1e-8) {
-		pcd.vrel = vlength(ev1_velo.x, ev1_velo.y);	
-	}
-	pcd.correctionFactor = pcd.overlap / pcd.vrel;
-	pcd.correctedLocation = add_scaled(ev1_loc, normal_velocity1, -pcd.correctionFactor);
-	pcd.correctionApplied = float2_scale(normal_velocity1, -pcd.correctionFactor);
-	
-	// normal velocity components after the impact
-	float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);
-	float u2 = projection(normal_velocity2.x, normal_velocity2.y, dist.x, dist.y);
-	float v1 = ((ev1_mass_ag - ev2_mass_ag)*u1 + 2 * ev2_mass_ag * u2) / (ev1_mass_ag + ev2_mass_ag);
-
-	normal_velocity1 = parallel(dist.x, dist.y, v1);
-
-	pcd.correctedVelocity = float2_add(normal_velocity1, tangent_velocity1);
-	return pcd;
-}
-
-struct PostCollisionDataInitial {
-	float2 correctedPosition;
-	float2 correctionApplied;
-	float2 correctedVelocity;
-	float correctionFactor;
-	float overlap;
-	float vrel;
-	float vnorm;
-	float2 auxiliaryFactors;
-};
-__device__ struct PostCollisionDataInitial solve_collision_ev_default_ev_initial(
-		float2 ev1_loc, float2 ev1_velo, float ev1_mass_ag,
-		float2 ev2_loc, float2 ev2_velo, float ev2_mass_ag, 
-		float min_distance, float2 dist, float dist_length) {
-	struct PostCollisionDataInitial pcdi;
-
-	// normal velocity vectors just before the impact
-	float2 normal_velocity1 = float2_project(ev1_velo, dist);
-	float2 normal_velocity2 = float2_project(ev2_velo, dist);
-	// tangential velocity vector, not affected by the collision resolution
-	float2 tangent_velocity1 = float2_sub(ev1_velo, normal_velocity1);
-
-	// The EV in default state must be relocated so that it just touches the EV in initial state
-	// To do so, we correct it's position by the overlap distance
-	// EV_default's position is corrected using it's velocity before collision
-	pcdi.overlap = min_distance - dist_length;
-	//float2 normal_velo_subtracted = float2_sub(normal_velocity1, normal_velocity2);
-	// projection of the velocity vector  on the direction of the collision 
-	pcdi.vrel = -77.7f; //vlength(normal_velocity1.x, normal_velocity1.y);
-	pcdi.vnorm = vlength(ev1_velo.x, ev1_velo.y); // original velocity before collision
-	float dp = ev1_velo.x * ev2_velo.x + ev1_velo.y * ev2_velo.y;
-	
-	// these auxiliary factors were introduced for debugging
-	pcdi.auxiliaryFactors.x = normal_velocity1.x; //pcdi.overlap / pcdi.vrel;
-	pcdi.auxiliaryFactors.y = normal_velocity1.y; //pcdi.overlap / pcdi.vnorm;
-	
-	pcdi.correctionFactor = pcdi.overlap / pcdi.vnorm;
-
-	// If the EVs are in opposite direction, the correction must subtract from the displacement
-	if(dp < 0){
-		//pcdi.auxiliaryFactors.y = -pcdi.auxiliaryFactors.y;
-		pcdi.correctionFactor = -pcdi.correctionFactor;
-	}
-	//float2 new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, pcdi.correctionFactors.y);
-	pcdi.correctedPosition = add_scaled(ev1_loc, normal_velocity1, pcdi.correctionFactor);
-	pcdi.correctionApplied = float2_scale(normal_velocity1, pcdi.correctionFactor);
-
-	// normal velocity components after the impact
-	float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);
-	float u2 = projection(normal_velocity2.x, normal_velocity2.y, dist.x, dist.y);
-	float v1 = ((ev1_mass_ag - ev2_mass_ag)*u1 + 2 * ev2_mass_ag*u2) / (ev1_mass_ag + ev2_mass_ag);
-	normal_velocity1 = parallel(dist.x, dist.y, v1);
-	pcdi.correctedVelocity = float2_add(normal_velocity1, tangent_velocity1);
-
-	return pcdi;
 }
 
 /**
@@ -1031,73 +638,43 @@ __device__ struct PostCollisionDataInitial solve_collision_ev_default_ev_initial
 */	
 __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_default(xmachine_memory_EV* agent,
 	xmachine_message_location_ev_default_list* location_messages, 
-	xmachine_message_location_ev_default_PBM* partition_matrix,
-	xmachine_message_collision_ev_default_list* collision_ev_default_messages){
+	xmachine_message_location_ev_default_PBM* partition_matrix
+	){
 	
-	float distance, closest_ev_distance = 100.f;
-	float radii = 0.0, radius_to_radius;
-	float max_overlap = 0, overlap;
-
-	unsigned int ev2_id = 0;
-	float ev2_x, ev2_y, ev2_vx, ev2_vy, ev2_mass_ag;
-	float2 distance_vector;
+	float distance, overlap, max_overlap = 0;
 
 	xmachine_message_location_ev_default* message = get_first_location_ev_default_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
-	// This check could be improved by identifying and solving only the first collision involving this agent.
 	while (message)	{
 		if (message->id != agent->id){
 			// check for collision
 			distance = euclidean_distance(agent, message->x, message->y);
 			// smallest separation before a collision occurs
-			radii = agent->radius_um + message->radius_um;
-			overlap = radii - distance;
-			if (overlap > 1e-4){
+			overlap = (agent->radius_um + message->radius_um) - distance;
+			//if (overlap > 1e-4){
 				// the closer both EV locations are, the larger the overlap is
-				if (ev2_id == 0 || overlap > max_overlap){
-					ev2_id = message->id;
-					closest_ev_distance = distance;
-					radius_to_radius = radii;
-					max_overlap = overlap;
-					distance_vector = make_float2(agent->x - message->x, agent->y - message->y);
-					ev2_x = message->x;
-					ev2_y = message->y;
-					ev2_vx = message->vx;
-					ev2_vy = message->vy;
-					ev2_mass_ag = message->mass_ag;
+				// these 2 can become only 1 comparison? overlap > max_overlap
+				if (//agent->closest_ev_default_id == 0 || 
+					overlap > max_overlap){
+						agent->closest_ev_default_id = message->id;
+						agent->closest_ev_default_distance = distance;
+						max_overlap = overlap;
 				}
-			}
+			//}
 		}
 		message = get_next_location_ev_default_message(message, location_messages, partition_matrix);
-	}
-	if (ev2_id > 0) {
-		// EV with smallest id produces the collision message
-		if(agent->id < ev2_id){
-			add_collision_ev_default_message(collision_ev_default_messages,
-			agent->id, agent->x, agent->y, agent->z,
-			ev2_id, ev2_x, ev2_y, ev2_vx, ev2_vy, ev2_mass_ag, 
-			radius_to_radius, distance_vector.x, distance_vector.y, 
-			closest_ev_distance, max_overlap
-			);
-		}
-		agent->closest_ev_default_id = ev2_id;
-		agent->closest_ev_default_distance = closest_ev_distance;
-		agent->last_ev_collision = iteration;
 	}
 	return 0;
 }
 
-__FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* agent, xmachine_message_location_ev_initial_list* location_messages, 
+__FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* agent, 
+	xmachine_message_location_ev_initial_list* location_messages, 
 	xmachine_message_location_ev_initial_PBM* partition_matrix){
 	
-	float distance, closest_ev_distance = 100.f;
-	float radii = 0.0, radius_to_radius;
+	float distance;
 	float max_overlap = 0, overlap;
 
-	unsigned int ev2_id = 0;
-	float ev2_x, ev2_y, ev2_vx, ev2_vy, ev2_mass_ag;
-	float2 distance_vector;
-	struct PostCollisionDataInitial pcdi;
+	//float4 new_values;
 
 	xmachine_message_location_ev_initial* message = get_first_location_ev_initial_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
@@ -1106,63 +683,24 @@ __FLAME_GPU_FUNC__ int test_collision_ev_default_ev_initial(xmachine_memory_EV* 
 		if (message->id != agent->id){
 			// check for collision
 			distance = euclidean_distance(agent, message->x, message->y);
-			radii = agent->radius_um + message->radius_um;
-
-			overlap = radii - distance;
-			if (overlap > 1e-4){
-				if (ev2_id == 0 || overlap > max_overlap){
-					ev2_id = message->id;
-					closest_ev_distance = distance;
-					radius_to_radius = radii;
-					max_overlap = overlap;
-					distance_vector = make_float2(agent->x - message->x, agent->y - message->y);
-					ev2_x = message->x;
-					ev2_y = message->y;
-					ev2_vx = message->vx;
-					ev2_vy = message->vy;
-					ev2_mass_ag = message->mass_ag;
-				}
+			overlap = (agent->radius_um + message->radius_um) - distance;
+			if (overlap > max_overlap){
+				agent->closest_ev_initial_id = message->id;
+				agent->closest_ev_initial_distance = distance;
+				max_overlap = overlap;
 			}
 		}
 		message = get_next_location_ev_initial_message(message, location_messages, partition_matrix);
 	}
-	if (ev2_id > 0) {
-		pcdi = solve_collision_ev_default_ev_initial(
-			make_float2(agent->x, agent->y), make_float2(agent->vx, agent->vy), agent->mass_ag,
-			make_float2(ev2_x, ev2_y), make_float2(ev2_vx, ev2_vy), ev2_mass_ag,
-			radius_to_radius, distance_vector, vlength(distance_vector.x, distance_vector.y));
-		// we store the current position as the previous and update the values accordingly
-		agent->precol_x = agent->x;
-		agent->precol_y = agent->y;
-		agent->precol_vx = agent->vx;
-		agent->precol_vy = agent->vy;
-
-		agent->x = pcdi.correctedPosition.x;
-		agent->y = pcdi.correctedPosition.y;
-		agent->vx = pcdi.correctedVelocity.x;
-		agent->vy = pcdi.correctedVelocity.y;
-		/*
-		both Vnorm and Vrel could produce a Div0 error but they cannot be checked
-		inside the function where their values are computed.
-		For debugging, we check their values here.
-		*/
-		
-		agent->closest_ev_initial_id = ev2_id;
-		agent->closest_ev_initial_distance = closest_ev_distance;
-		agent->last_ev_collision = iteration;
-	}
-
 	return 0;
 }
-
-__FLAME_GPU_FUNC__ int test_collision_ev_initial_ev_default(xmachine_memory_EV* agent, xmachine_message_location_ev_default_list* location_messages, 
+// tests and solves in one go
+__FLAME_GPU_FUNC__ int test_collision_ev_initial_ev_default(xmachine_memory_EV* agent, 
+	xmachine_message_location_ev_default_list* location_messages, 
 	xmachine_message_location_ev_default_PBM* partition_matrix){
 	
-	float distance, closest_ev_distance = 100.f;
-	float radii = 0.0;
+	float distance;
 	float max_overlap = 0, overlap;
-
-	unsigned int ev2_id = 0;
 
 	xmachine_message_location_ev_default* message = get_first_location_ev_default_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
 
@@ -1170,324 +708,387 @@ __FLAME_GPU_FUNC__ int test_collision_ev_initial_ev_default(xmachine_memory_EV* 
 		if (message->id != agent->id){
 			// check for collision
 			distance = euclidean_distance(agent, message->x, message->y);
-			radii = agent->radius_um + message->radius_um;
+			
+			overlap = (agent->radius_um + message->radius_um) - distance;
+			if (overlap > max_overlap){
+				agent->closest_ev_default_id = message->id;
+				agent->closest_ev_default_distance = distance;
+				max_overlap = overlap;
+				agent->last_ev_collision = iteration;
 
-			if (distance < radii){
-				overlap = radii - distance;
-				if (ev2_id == 0 || overlap > max_overlap){
-					ev2_id = message->id;
-					closest_ev_distance = distance;
-					max_overlap = overlap;
-				}
+				agent->precol.x = agent->x;
+				agent->precol.y = agent->y;
+				agent->precol_v.x = agent->vx;
+				agent->precol_v.y = agent->vy;
+				
+				agent->x = agent->x_1;
+				agent->y = agent->y_1;
 			}
 		}
 		message = get_next_location_ev_default_message(message, location_messages, partition_matrix);
 	}
-	if (ev2_id > 0) {
-		// the EV in initial position maintains the same location from the previous iteration
-		agent->x = agent->x_1;
-		agent->y = agent->y_1;
-		
+	if(agent->closest_ev_default_id != 0){
 		agent->time_in_initial_state += dt;
-
-		agent->closest_ev_default_id = ev2_id;
-		agent->closest_ev_default_distance = closest_ev_distance;
-		agent->last_ev_collision = iteration;
 	}
-
 	return 0;
 }
-
-__FLAME_GPU_FUNC__ int test_collision_ev_default_ev_bounced(xmachine_memory_EV* agent, 
-	xmachine_message_location_ev_bounced_list* location_messages, 
-	xmachine_message_location_ev_bounced_PBM* partition_matrix){
+// solves direct collisions between EV and segments
+__device__  int solve_segment_collision(xmachine_memory_EV* agent, float cell_dir_x, 
+	float cell_dir_y, float cell_direction_length, float perp_dist_x, float perp_dist_y,
+	float cell_unit_normal_x, float cell_unit_normal_y) {
 	
-	float distance, closest_ev_distance = 100.f;
-	float radii = 0.0, radius_to_radius;
-	float max_overlap = 0, overlap;
-
-	unsigned int ev2_id = 0;
-	float ev2_x, ev2_y, ev2_vx, ev2_vy, ev2_mass_ag;
-	float2 distance_vector;
-	struct PostCollisionDataInitial pcdi;
-
-	xmachine_message_location_ev_bounced* message = get_first_location_ev_bounced_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
-
-	// This check could be improved by identifying and solving only the first collision involving this agent.
-	while (message)	{
-		if (message->id != agent->id){
-			// check for collision
-			distance = euclidean_distance(agent, message->x, message->y);
-			radii = agent->radius_um + message->radius_um;
-
-			overlap = radii - distance;
-			if (overlap > 1e-4){
-				if (ev2_id == 0 || overlap > max_overlap){
-					ev2_id = message->id;
-					closest_ev_distance = distance;
-					radius_to_radius = radii;
-					max_overlap = overlap;
-					distance_vector = make_float2(agent->x - message->x, agent->y - message->y);
-					ev2_x = message->x;
-					ev2_y = message->y;
-					ev2_vx = message->vx;
-					ev2_vy = message->vy;
-					ev2_mass_ag = message->mass_ag;
-				}
-			}
-		}
-		message = get_next_location_ev_bounced_message(message, location_messages, partition_matrix);
-	}
-	if (ev2_id > 0) {
-		// we call the same function solving collisions with evs in initial state
-		pcdi = solve_collision_ev_default_ev_initial(
-			make_float2(agent->x, agent->y), make_float2(agent->vx, agent->vy), agent->mass_ag,
-			make_float2(ev2_x, ev2_y), make_float2(ev2_vx, ev2_vy), ev2_mass_ag,
-			radius_to_radius, distance_vector, vlength(distance_vector.x, distance_vector.y));
-		// we store the current position as the previous and update the values accordingly
-		agent->precol_x = agent->x;
-		agent->precol_y = agent->y;
-		agent->precol_vx = agent->vx;
-		agent->precol_vy = agent->vy;
-		agent->x_1 = agent->x;
-		agent->y_1 = agent->y;
-
-		agent->x = pcdi.correctedPosition.x;
-		agent->y = pcdi.correctedPosition.y;
-		agent->vx = pcdi.correctedVelocity.x;
-		agent->vy = pcdi.correctedVelocity.y;
-		/*
-		both Vnorm and Vrel could produce a Div0 error but they cannot be checked
-		inside the function where their values are computed.
-		For debugging, we check their values here.
-		*/
-		
-		agent->closest_ev_bounced_id = ev2_id;
-		agent->closest_ev_bounced_distance = closest_ev_distance;
-		agent->last_ev_collision = iteration;
-	}
-
-	return 0;
-}
-
-__FLAME_GPU_FUNC__ int reset_state(xmachine_memory_EV* agent) {
-	agent->closest_ciliary_cell_id = -1;
-	agent->closest_ciliary_cell_distance = 100;
-	agent->closest_secretory_cell_id = -1;
-	agent->closest_secretory_cell_distance = 100;
-	agent->closest_ev_default_id = 0;
-	agent->closest_ev_default_distance = 100;
-
-	agent->debugNanInfVelocity = 0;
-	agent->debugNanInfLocation = 0;
-
-	agent->debugDragVel0At = 0;
-	agent->debugDiv0 = 0;
-	agent->debugNanInfValue = 0;
-
-	agent->debugNonFiniteBmAt = -1;
-
-	return 0;
-}
-
-__FLAME_GPU_FUNC__ int reset_state_collision_ev_default(xmachine_memory_EV* agent) {
-
-	float dx = agent->x - agent->x_1;
-	float dy = agent->y - agent->y_1;
-	if( (dx * dx + dy * dy) > 100 * agent->velocity_ums){
-		return 1;
-	}
-
-	agent->closest_ev_default_id = 0;
-	agent->closest_ev_default_distance = 100;
-
-	agent->debugNanInfVelocity = 0;
-	agent->debugNanInfLocation = 0;
-
-	agent->debugDragVel0At = 0;
-	agent->debugDiv0 = 0;
-	agent->debugNanInfValue = 0;
-
-	agent->debugNonFiniteBmAt = -1;
-
-	return 0;
-}
-
-__FLAME_GPU_FUNC__ int reset_state_collision_ev_initial(xmachine_memory_EV* agent) {
-	agent->closest_ev_initial_id = 0;
-	agent->closest_ev_initial_distance = 100;
-
-	agent->debugNanInfVelocity = 0;
-	agent->debugNanInfLocation = 0;
-
-	agent->debugDragVel0At = 0;
-	agent->debugDiv0 = 0;
-	agent->debugNanInfValue = 0;
-
-	agent->debugNonFiniteBmAt = -1;
-
-	return 0;
-}
-
-__FLAME_GPU_FUNC__ int reset_state_collision_wall(xmachine_memory_EV* agent) {
-	float dx = agent->x - agent->x_1;
-	float dy = agent->y - agent->y_1;
-	if( dx * dx + dy * dy > 100 * agent->velocity_ums){
-		return 1;
-	}
-	agent->closest_ciliary_cell_id = -1;
-	agent->closest_ciliary_cell_distance = 100;
-	agent->closest_secretory_cell_id = -1;
-	agent->closest_secretory_cell_distance = 100;
+	// We compute the angle between velocity and wall direction based on
+	// the cosine of the angle betwen two vectors which is the quotient of the
+	// dot product of the vectors and the product of their magnitudes
+	// 1. angle between velocity and wall direction
+	float dp = dotprod(agent->vx, agent->vy, cell_dir_x, cell_dir_y);
+	float lengths_product = (vlength(agent->vx, agent->vy) * cell_direction_length);
+	float quotient = dp / lengths_product;
 	
-	agent->debugNanInfVelocity = 0;
-	agent->debugNanInfLocation = 0;
+	// Due to rounding errors, the quotient can have values out of the
+	// expected range for acosf() which produces NaN values
+	if(quotient > 1.0) { quotient = 1.0; }
+	else if (quotient < -1.0) { quotient = -1.0; }
+	float angleBetween = acosf(quotient);
 
-	agent->debugDragVel0At = 0;
-	agent->debugDiv0 = 0;
-	agent->debugNanInfValue = 0;
+	// 2. reposition object
+	// 2.1. start by computing deltaS
+	float dist_dp_normal = dotprod(perp_dist_x, perp_dist_y, cell_unit_normal_x, cell_unit_normal_y);
+	float sin_angle = sinf(angleBetween);
+	float deltaS = 0;
+	agent->dbgSegC.x = angleBetween;
+	agent->dbgSegC.y = sin_angle;
+	agent->dbgSegC.z = dist_dp_normal;
 
-	agent->debugNonFiniteBmAt = -1;
-
-	return 0;
-}
-
-__FLAME_GPU_FUNC__ int reset_state_initial(xmachine_memory_EV* agent) {
-	agent->closest_ev_default_id = 0;
-	agent->closest_ev_default_distance = 100;
-
-	return 0;
-}
-
-__FLAME_GPU_FUNC__ int initial_to_default(xmachine_memory_EV* agent) {
-	agent->apoptosis_timer = 0;
-	return 0;
-}
-
-/*
-	Uses the Box-Mueller transform to generate a pair of normally distributed random numbers
-	by sampling from two uniformly distributed RNG.
-	In the original algorithm, the sampled values are transformed into cartesian coordinates,
-	here they become the new velocity for the next step
-	Due to limitations in FlameGPU, we sample both continuos numbers from the same RNG.
-*/
-__FLAME_GPU_FUNC__ int brownian_movement_1d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
-	float u1, u2, r, theta;
-	
-	u1 = rnd<CONTINUOUS>(rand48);
-	u2 = rnd<CONTINUOUS>(rand48);
-	r = sqrtf(-2.0 * log(u1));
-	theta = 2 * u2;
-	// the product of r * (cos|sin)(theta) becomes the displacement factor to use in this iteration
-	agent->vx = agent->velocity_ums * r * cospif(theta) * dt;
-	
-	return 0;
-}
-
-__FLAME_GPU_FUNC__ int brownian_movement_2d(xmachine_memory_EV* agent, RNG_rand48* rand48) {
-	float u1, u2, r, theta;
-	if(isfinite(agent->bm_vx) && isfinite(agent->bm_vy)){
-		agent->debugNonFiniteBmAt = -2;
-		u1 = rnd<CONTINUOUS>(rand48);
-		u2 = rnd<CONTINUOUS>(rand48);
-		r = sqrtf(-2*log(u1)) * agent->mdd125;
-		theta = 2 * u2;
-		float bm_vx = (r * cospif(theta));
-		float bm_vy = (r * sinpif(theta));
-		if(isfinite(bm_vx) && isfinite(bm_vy)){
-			agent->bm_vx = bm_vx;
-			agent->bm_vy = bm_vy;
-			agent->vx = bm_vx * bm_factor;
-			agent->vy = bm_vy * bm_factor;
-		} else {
-			agent->bm_vx = 0;
-			agent->bm_vy = 0;
-			agent->vx = 0;
-			agent->vy = 0;
-			agent->debugNonFiniteBmAt = agent->age;
-		}
-		agent->last_bm = 0;
-		
-		if(agent->debugNonFiniteBmAt < 0)
-			agent->debugNonFiniteBmAt = -4;
+	// deltaS matches the value of 'closest_secretory_cell_distance'
+	if (abs(sin_angle) < 1e-6) {
+		// special case, orthogonal collisions produce angle=0, sin_angle=0
+		// the distance to compensate affects only a single axis
+		deltaS = agent->radius_um - abs(dist_dp_normal);
 	} else {
-		agent->bm_vx = 0;
-		agent->bm_vy = 0;
-		agent->vx = 0;
-		agent->vy = 0;
-		if(agent->debugNonFiniteBmAt < 0){
-			agent->debugNonFiniteBmAt = agent->age;
-		}
+		// *0.001 corrects the compensation required
+		deltaS = ((agent->radius_um - abs(dist_dp_normal)) / sin_angle) * 0.001;
 	}
-	return 0;
-}
+	agent->dbgSegC.w = deltaS; // same value as the magnitude of displ?
 
-/*
-	EVs are subject to an appoptotic attempt per second during their lifespan.
-	The apoptosis_threshold reflects the probability of the EV dying at a given time
-*/
-__FLAME_GPU_FUNC__ int ev_default_apoptosis(xmachine_memory_EV* agent, RNG_rand48* rand48){
+	// 2.2. estimate the displacement vector needed for the correction
+	float2 displ = parallel(agent->vx, agent->vy, deltaS);
+	// distance, 
+	agent->dbgSegCdispl.x = vlength(perp_dist_x, perp_dist_y);
+	agent->dbgSegCdispl.y = vlength(displ.x, displ.y);// <- same value as deltaS?
+	agent->dbgSegCdispl.z = displ.x;
+	agent->dbgSegCdispl.w = displ.y;
+	agent->intendDispl = displacement_sq(agent);
+	// 2.3. update position by subtracting the displacement
+	agent->x -= displ.x;
+	agent->y -= displ.y;
+
+	// 6. decompose the velocity
+	// velocity vector component perpendicular to wall just before impact
+	float velocityProjection = projection(agent->vx, agent->vy, perp_dist_x, perp_dist_y);
+	float2 normalVelocity = parallel(perp_dist_x, perp_dist_y, velocityProjection);
 	
-	if(agent->apoptosis_timer > apoptosis_frequency){
-		agent->apoptosis_timer = 0;
-		if(rnd<CONTINUOUS>(rand48) < apoptosis_threshold){
-			return 1;
-		}
-	} else {
-		agent->apoptosis_timer += dt;
-	}
+	// velocity vector component parallel to wall; unchanged by impact
+	float tangentVelocity_x = agent->vx - normalVelocity.x;
+	float tangentVelocity_y = agent->vy - normalVelocity.y;
+	
+	// velocity vector component perpendicular to wall just after impact
+	float new_vx = tangentVelocity_x + (-normalVelocity.x);
+	float new_vy = tangentVelocity_y + (-normalVelocity.y);
+	if (isfinite(new_vx) && isfinite(new_vy)){
+		agent->vx = new_vx;
+		agent->vy = new_vy;
+	} 
 	return 0;
 }
 
-/*
-	EVs in initial state have the 'time_in_initial_state' extended when colliding with
-	an EV in default state. However, very long extensions can lead to undefined behaviour.
-	To prevent this, the max extension allowed is 2x time in initial state.
-	Extensions longer than this value lead to apoptosis.
+__device__  int solve_segment_end_point_collision(xmachine_memory_EV* agent, 
+	float wall_pt_x, float wall_pt_y
+) {
+	// bounce off endpoint wall_p
+	float distp_x = agent->x - wall_pt_x;
+	float distp_y = agent->y - wall_pt_y;
+
+	// move particle so that it just touches the endpoint			
+	float L = agent->radius_um - vlength(distp_x, distp_y);
+	float vrel = vlength(agent->vx, agent->vy);
+	agent->x += agent->vx * (-L / vrel);
+	agent->y += agent->vy * (-L / vrel);
+
+	// normal velocity vector just before the impact
+	float2 normalVelo = project(agent->vx, agent->vy, distp_x, distp_y);
+	// tangential velocity vector
+	float tangentVelo_x = agent->vx - normalVelo.x;
+	float tangentVelo_y = agent->vy - normalVelo.y;
+	// normal velocity vector after collision
+
+	//// final velocity vector after collision
+	agent->vx = -normalVelo.x + tangentVelo_x;
+	agent->vy = -normalVelo.y + tangentVelo_y;
+	return 0;
+}
+
+__device__ int solve_cell_collision(xmachine_memory_EV* agent, float p1_x, float p1_y, float p2_x, float p2_y, 
+	float direction_x, float direction_y, float direction_x_unit, float direction_y_unit, float direction_length,
+	float unit_normal_x, float unit_normal_y, float caller)
+	{
+		float4 ev_wall_vectors = vectors_from_ev_to_wall_endpoints(agent, p1_x, p1_y, p2_x, p2_y);
+		float2 projections = project_vectors_onto_wall(ev_wall_vectors, direction_x, direction_y);
+		float2 perp_dist = perpendicular_distance_from_ev_to_wall(ev_wall_vectors, projections.x, direction_x_unit, direction_y_unit);
+
+		bool test_needed = ((abs(projections.x) < direction_length)
+				&& (abs(projections.y) < direction_length));
+		if (((perp_dist.x * perp_dist.x + perp_dist.y * perp_dist.y) < agent->radius_um_sq) && test_needed) {
+			agent->precol.x = agent->x;
+			agent->precol.y = agent->y;
+			agent->precol_v.x = agent->vx;
+			agent->precol_v.y = agent->vy;
+			solve_segment_collision(agent, direction_x,	direction_y, direction_length,
+				perp_dist.x, perp_dist.y, unit_normal_x, unit_normal_y);
+		}
+		else if (abs(ev_wall_vectors.x * ev_wall_vectors.x + ev_wall_vectors.y * ev_wall_vectors.y) < agent->radius_um_sq) {
+			// collision with 1st end point
+			agent->precol.x = agent->x;
+			agent->precol.y = agent->y;
+			agent->precol_v.x = agent->vx;
+			agent->precol_v.y = agent->vy;
+			solve_segment_end_point_collision(agent, p1_x, p1_y);
+		}
+		else if (abs(ev_wall_vectors.z * ev_wall_vectors.z + ev_wall_vectors.w * ev_wall_vectors.w) < agent->radius_um_sq) {
+			// collision with 2nd end point
+			agent->precol.x = agent->x;
+			agent->precol.y = agent->y;
+			agent->precol_v.x = agent->vx;
+			agent->precol_v.y = agent->vy;
+			solve_segment_end_point_collision(agent, p2_x, p2_y);
+		}
+		return 0;
+}
+
+/**
+	Collision resolution algorithm modified from Physics for Javascript Games, Animation, and Simulation Ch, 11
+	ID 3000
 */
-__FLAME_GPU_FUNC__ int ev_initial_apoptosis(xmachine_memory_EV* agent){
-	if(agent->time_in_initial_state > agent->apoptosis_timer){
-		return 1;
+__FLAME_GPU_FUNC__ int secretory_cell_collision_resolution(xmachine_memory_EV* agent,
+	xmachine_message_secretory_cell_location_list* location_messages,
+	xmachine_message_secretory_cell_location_PBM* partition_matrix)
+{
+	xmachine_message_secretory_cell_location* message = get_first_secretory_cell_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
+
+	while (message){
+		// we verify the ev_id in the message matches this agent's id
+		if (message->id == agent->closest_secretory_cell_id) {
+			solve_cell_collision(agent, message->p1_x, message->p1_y, message->p2_x, message->p2_y,
+				message->direction_x, message->direction_y, message->direction_x_unit, message->direction_y_unit,
+				message->direction_length, message->unit_normal_x, message->unit_normal_y, 3000);
+		}
+		message = get_next_secretory_cell_location_message(message, location_messages, partition_matrix);
 	}
 	return 0;
 }
 
 /**
- * move FLAMEGPU Agent Function
- * Automatically generated using functions.xslt
- * @param agent Pointer to an agent structure of type xmachine_memory_EV. This represents a single agent instance and can be modified directly.
- 
- */
-__FLAME_GPU_FUNC__ int move_bm(xmachine_memory_EV* agent){
-	agent->x_1 = agent->x;
-	agent->y_1 = agent->y;
-
-	agent->x += agent->vx;
-	agent->y += agent->vy;
-
-	agent->age += dt;
-	agent->last_bm += dt;
-    return 0;
+	This function resolves a single collision between an EV and a ciliary cell
+	After this, the EV has new values for x, y, vx, and vy, compensated for the collision
+	ID 4000
+*/
+__FLAME_GPU_FUNC__ int ciliary_cell_collision_resolution(xmachine_memory_EV* agent, 
+	xmachine_message_ciliary_cell_location_list* location_messages,
+	xmachine_message_ciliary_cell_location_PBM* partition_matrix)
+{
+	xmachine_message_ciliary_cell_location* message = get_first_ciliary_cell_location_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
+	while (message) {
+		// we verify the ev_id in the message matches this agent's id
+		if (message->id == agent->closest_ciliary_cell_id) {
+			solve_cell_collision(agent, message->p1_x, message->p1_y, message->p2_x, message->p2_y,
+				message->direction_x, message->direction_y, message->direction_x_unit, message->direction_y_unit,
+				message->direction_length, message->unit_normal_x, message->unit_normal_y, 4000);
+		}
+		message = get_next_ciliary_cell_location_message(message, location_messages, partition_matrix);
+	}
+	return 0;
 }
-__FLAME_GPU_FUNC__ int move(xmachine_memory_EV* agent){
-	agent->x_1 = agent->x;
-	agent->y_1 = agent->y;
-	agent->x += agent->vx * dt;
-	agent->y += agent->vy * dt;
-
-	agent->age += dt;
-    return 0;
+__FLAME_GPU_FUNC__ int collision_default_default(xmachine_memory_EV* agent){
+	agent->last_ev_collision = iteration;
+	return 0;
 }
-__FLAME_GPU_FUNC__ int moveInitial(xmachine_memory_EV* agent) {
+__FLAME_GPU_FUNC__ int collision_default_initial(xmachine_memory_EV* agent){
+	agent->last_ev_collision = iteration;
+	return 0;
+}
+__FLAME_GPU_FUNC__ int collision_secretory_cell(xmachine_memory_EV* agent){
+	agent->last_cell_collision = iteration;
+	return 0;
+}
+__FLAME_GPU_FUNC__ int collision_ciliary_cell(xmachine_memory_EV* agent){
+	agent->last_cell_collision = iteration;
+	return 0;
+}
 
-	agent->x_1 = agent->x;
-	agent->y_1 = agent->y;
+// must be executed by one of the involved EVs only
+__FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_default(xmachine_memory_EV* agent,
+	xmachine_message_location_ev_default_list* location_messages,
+	xmachine_message_location_ev_default_PBM* partition_matrix, 
+	xmachine_message_resolved_collision_ev_default_list* resolved_collision_messages
+	)
+{
+	xmachine_message_location_ev_default* message = get_first_location_ev_default_message(
+		location_messages, partition_matrix, agent->x, agent->y, agent->z);
+	while(message){
+		if(agent->closest_ev_default_id == message->id){
+			// solve the collision for both agents
+			float2 ev1_loc = make_float2(agent->x, agent->y);
+			float2 ev2_loc = make_float2(message->x, message->y);
 
-	agent->x += agent->vx;
-	agent->y += agent->vy;
+			float2 ev1_velo = make_float2(agent->vx, agent->vy);
+			float2 ev2_velo = make_float2(message->vx, message->vy);
+			float2 distance = make_float2(agent->x - message->x, agent->y - message->y);
+			
+			// normal velocity vectors just before the impact
+			float2 normal_velocity1 = float2_project(ev1_velo, distance);
+			float2 normal_velocity2 = float2_project(ev2_velo, distance);
+			// tangential velocity vector
+			float2 tangent_velocity1 = float2_sub(ev1_velo, normal_velocity1);
+			float2 tangent_velocity2 = float2_sub(ev2_velo, normal_velocity2);
 
-	agent->age += dt;
+			// move particles so that they just touch
+			// If both normal components match, the value of pcd.vrel would be zero
+			// float min_distance = agent->radius_um + message->radius_um;
+			//float distance_length = vlength(distance.x, distance.y);
+			float overlap = (agent->radius_um + message->radius_um) - vlength(distance.x, distance.y);
+			float2 normal_velo_subtracted = float2_sub(normal_velocity1, normal_velocity2);
+			float vrel = vlength(normal_velo_subtracted.x, normal_velo_subtracted.y);
+			if (vrel == 0 || vrel < 1e-8) {
+				vrel = vlength(ev1_velo.x, ev1_velo.y);	
+			}
+			float correctionFactor = overlap / vrel;
+			float2 ev1_new_loc = add_scaled(ev1_loc, normal_velocity1, -correctionFactor);
+			float2 ev2_new_loc = add_scaled(ev2_loc, normal_velocity2, -correctionFactor);			
+			// normal velocity components after the impact
+			//float m1 = agent->mass_ag;
+			//float m2 = message->ev2_mass_ag;
+			float u1 = projection(normal_velocity1.x, normal_velocity1.y, distance.x, distance.y);
+			float u2 = projection(normal_velocity2.x, normal_velocity2.y, distance.x, distance.y);
+			float v1 = ((agent->mass_ag - message->mass_ag) * u1 + 2 * message->mass_ag * u2) / (agent->mass_ag + message->mass_ag);
+			float v2 = ((message->mass_ag - agent->mass_ag) * u2 + 2 * agent->mass_ag * u1) / (agent->mass_ag + message->mass_ag);
 
+			normal_velocity1 = parallel(distance.x, distance.y, v1);
+			normal_velocity2 = parallel(distance.x, distance.y, v2);
+			float2 ev1_new_v = float2_add(normal_velocity1, tangent_velocity1);
+			float2 ev2_new_v = float2_add(normal_velocity2, tangent_velocity2);
+			
+			// update the current agent
+			agent->precol.x = agent->x;
+			agent->precol.y = agent->y;
+			agent->precol_v.x = agent->vx;
+			agent->precol_v.y = agent->vy;
+			agent->x = ev1_new_loc.x;
+			agent->y = ev1_new_loc.y;
+			agent->vx = ev1_new_v.x;
+			agent->vy = ev1_new_v.y;
+
+			// create a message with the updated values for the other involved agent
+			add_resolved_collision_ev_default_message(resolved_collision_messages,
+				agent->id, message->x, message->y, message->z, 
+				message->id, ev2_new_loc.x, ev2_new_loc.y, ev2_new_v.x, ev2_new_v.y
+			);
+		}
+		message = get_next_location_ev_default_message(message, location_messages, partition_matrix);
+	}
+	return 0;
+}
+// executed by the second EV involved in the previous collision
+__FLAME_GPU_FUNC__ int post_collision_update_ev_default_ev_default(xmachine_memory_EV* agent,
+	xmachine_message_resolved_collision_ev_default_list* resolved_collision_messages,
+	xmachine_message_resolved_collision_ev_default_PBM* partition_matrix
+	)
+{
+		xmachine_message_resolved_collision_ev_default* message = get_first_resolved_collision_ev_default_message(
+			resolved_collision_messages, partition_matrix, agent->x, agent->y, agent->z);
+		while(message){
+			if(agent->id == message->ev2_id){
+				agent->precol.x = agent->x;
+				agent->precol.y = agent->y;
+				agent->precol_v.x = agent->vx;
+				agent->precol_v.y = agent->vy;
+
+				agent->x = message->ev2_new_x;
+				agent->y = message->ev2_new_y;
+				agent->vx = message->ev2_new_vx;
+				agent->vy = message->ev2_new_vy;
+			}
+			message = get_next_resolved_collision_ev_default_message(
+				message, resolved_collision_messages, partition_matrix);
+		}
+		return 0;
+}
+
+__device__ float4 solve_collision_ev_default_ev_initial(
+		float2 ev1_loc, float2 ev1_velo, float ev1_mass_ag,
+		float2 ev2_loc, float2 ev2_velo, float ev2_mass_ag, 
+		float min_distance, float2 dist, float dist_length) {
+
+	// normal velocity vectors just before the impact
+	float2 normal_velocity1 = float2_project(ev1_velo, dist);
+	float2 normal_velocity2 = float2_project(ev2_velo, dist);
+	// tangential velocity vector, not affected by the collision resolution
+	float2 tangent_velocity1 = float2_sub(ev1_velo, normal_velocity1);
+
+	// The EV in default state must be relocated so that it just touches the EV in initial state
+	// To do so, we correct it's position by the overlap distance
+	// EV_default's position is corrected using it's velocity before collision
+	
+	// overlap / original velocity before collision
+	float correctionFactor = (min_distance - dist_length) / vlength(ev1_velo.x, ev1_velo.y);
+
+	// If the EVs are in opposite direction, the correction must subtract from the displacement
+	if(ev1_velo.x * ev2_velo.x + ev1_velo.y * ev2_velo.y < 0){
+		correctionFactor = -correctionFactor;
+	}
+	//float2 new_ev1_loc = add_scaled(ev1_loc, normal_velocity1, pcdi.correctionFactors.y);
+	//new_values.xy 
+	float2 new_xy = add_scaled(ev1_loc, normal_velocity1, correctionFactor);
+	//pcdi.correctionApplied = float2_scale(normal_velocity1, correctionFactor);
+
+	// normal velocity components after the impact
+	float u1 = projection(normal_velocity1.x, normal_velocity1.y, dist.x, dist.y);
+	float u2 = projection(normal_velocity2.x, normal_velocity2.y, dist.x, dist.y);
+	float v1 = ((ev1_mass_ag - ev2_mass_ag)*u1 + 2 * ev2_mass_ag*u2) / (ev1_mass_ag + ev2_mass_ag);
+	normal_velocity1 = parallel(dist.x, dist.y, v1);
+	float2 new_vxvy = float2_add(normal_velocity1, tangent_velocity1);
+	return make_float4(new_xy.x, new_xy.y, new_vxvy.x, new_vxvy.y);
+}
+
+__FLAME_GPU_FUNC__ int collision_solver_ev_default_ev_initial(xmachine_memory_EV* agent,
+	xmachine_message_location_ev_initial_list* location_messages, 
+	xmachine_message_location_ev_initial_PBM* partition_matrix){
+
+	xmachine_message_location_ev_initial* message = get_first_location_ev_initial_message(location_messages, partition_matrix, agent->x, agent->y, agent->z);
+	while(message){
+		if(agent->closest_ev_initial_id == message->id){
+			float2 d = make_float2(message->x, message->y);
+			float4 new_values = solve_collision_ev_default_ev_initial(make_float2(agent->x, agent->y), 
+				make_float2(agent->vx, agent->vy), agent->mass_ag, 
+				make_float2(message->x, message->y),
+				make_float2(message->vx, message->vy), message->mass_ag, 
+				agent->radius_um + message->radius_um, d, vlength(d.x, d.y));
+
+			agent->precol.x = agent->x;
+			agent->precol.y = agent->y;
+			agent->precol_v.x = agent->vx;
+			agent->precol_v.y = agent->vy;
+			agent->x = new_values.x;
+			agent->y = new_values.y;
+			agent->vx = new_values.z;
+			agent->vy = new_values.w;
+		}
+		message = get_next_location_ev_initial_message(message, location_messages, partition_matrix);
+	}
+	return 0;
+}
+
+__FLAME_GPU_FUNC__ int collision_solver_ev_initial_ev_default(xmachine_memory_EV* agent){
+	
 	return 0;
 }
 
@@ -1533,11 +1134,12 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 			// with parameters: mean = 0 and std = MDD@0.1sec / 1.25, produces the
 			// expected mean displacement for the corresponding diffusion rate
 			float mdd125 = MDD_01s * 0.8;
-
+			float u = sqrtf(-2*log(rnd<CONTINUOUS>(rand48)));
+			float bm_rx = u < -1.0f ? -1.0f : u > 1.0f ? 1.0f : u;
+			float bm_ry =  bm_rx * mdd125 * bm_factor;
 			// decompose velocity
-			float velocity = mdd125 * (bm_factor);
-			float vx = velocity * secretoryCell->unit_normal_x;
-			float vy = velocity * secretoryCell->unit_normal_y;
+			float vx = bm_ry * secretoryCell->unit_normal_x;
+			float vy = bm_ry * secretoryCell->unit_normal_y;
 
 			// choose a random starting point
 			int rand_i2 = (int)(rnd<CONTINUOUS>(rand48) * secretoryCell->source_points);
@@ -1563,7 +1165,7 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 			x -= secretoryCell->unit_normal_x * radius_um;
 			y -= secretoryCell->unit_normal_y * radius_um;
 
-			float time_in_initial = ((radius_um * 2.) / velocity) * dt;
+			float time_in_initial = ((radius_um * 2.) / bm_ry) * dt;
 
 			// if the cell has only 1 source point, it cannot secrete another EV until
 			// the previous has been fully released, we make sure of that
@@ -1571,31 +1173,24 @@ __FLAME_GPU_FUNC__ int secrete_ev(xmachine_memory_SecretoryCell* secretoryCell, 
 				secretoryCell->time_to_next_secretion_attempt = time_in_initial * 1.5;
 			}
 
-			// EV_secretoryCell_list, id, x, y, z, x_1, y_1, vx, vy, bm_vx, bm_vy, last_bm,
-			add_EV_agent(EVs, id, x, y, 0, x - vx * dt, y - vy * dt, vx, vy, 0, 0, 0,
-				// mass_ag, radius_um, radius_um * 1.2, radius_um^2
-				mass_ag, radius_um, radius_um * 1.2, radius_um * radius_um, 
+			// EV_secretoryCell_list, id, x, y, z, x_1, y_1, vx, vy, bm_vx, bm_vy, bm_r, last_bm,
+			add_EV_agent(EVs, id, x, y, 0, x - vx * dt, y - vy * dt, vx, vy, 0, 0, fvec2(bm_rx, bm_ry), 0,
+				// mass_ag, radius_um, radius_um^2
+				mass_ag, radius_um, radius_um * radius_um, 
 				// diffusion_rate_um, MDD_01s, mdd125
 				diffusion_rate_ums, MDD_01s, mdd125,
 				// closest: ev_d_id, d_dist, ev_i_id, i_dist, ev_b_id, b_dist
 				0, 100, 0, 100, 0, 100,
 				// closest: secretory, dist, ciliary, dist, last_[ev|cell]_collision, age
 				-1, 100, -1, 100, 0, 0, 0,
-				// apoptosis timer, time_in_initial_state, velocity_um
-				time_in_initial * 2, time_in_initial, velocity,
+				// apoptosis timer, time_in_initial_state, orig t in init, velocity_um
+				time_in_initial * 2, time_in_initial, time_in_initial, 0,
 				// pre-collision: x, y, vx, vy
-				0, 0, 0, 0,
-				
-				// debug
-				// debugNanInfVelocity - debugSinAngle
-				//0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -997.7, -998.8, -999.9, 0, 0,
-				// debugDeltaS - debugTangVelY
-				//0, 0, 0, 
-				0, 0, 0, 0,
-				// debugInternPerpDistX - debugNonFiniteBmAt
-				//1000, 1001,
-				//1002, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 
-				-1, -1
+				fvec2(0.0f, 0.0f), fvec2(0.0f, 0.0f),
+				// dbgSegC
+				fvec4(0,0,0,0),
+				fvec4(0.0f, 0.0f, 0.0f, 0.0f),
+				uvec3(0,0,0), 0.0f, 0.0f
 				);
 		}
 	}
