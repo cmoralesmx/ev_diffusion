@@ -40,10 +40,10 @@ extern float *h_ys;
 #define FOVY 45.0
 
 GLuint vboIdCiliary;
-GLuint vboIdSecretory;
-GLuint vaoIdSecretory;
 GLuint vaoIdCiliary;
-cudaGraphicsResource *CGRsecretory, *CGRciliary;
+GLuint vboIdSecretoryInitial, vboIdSecretoryDefault;
+GLuint vaoIdSecretoryInitial, vaoIdSecretoryDefault;
+cudaGraphicsResource *CGRsecretoryInitial, *CGRsecretoryDefault, *CGRciliary;
 bool display_walls = true;
 bool thick_walls = false;
 bool evSpheres = true;
@@ -58,8 +58,8 @@ GLuint fragmentShader;
 GLuint shaderProgram;
 GLuint vs_mapIndex;
 
-GLuint secretory_vertexShader;
-GLuint secretory_shaderProgram;
+GLuint secretoryInitial_vertexShader, secretoryDefault_vertexShader;
+GLuint secretoryInitial_shaderProgram, secretoryDefault_shaderProgram;
 GLuint boundaries_fragmentShader;
 GLuint ciliary_vertexShader;
 GLuint ciliary_shaderProgram;
@@ -68,7 +68,7 @@ GLuint ciliary_shaderProgram;
 GLuint sphereVerts, sphereInitialVerts, sphereCollisionEvDefaultVerts;
 
 Shader *evPtsShader, *evGeoShader, *evInitialShader, *evCollisionEvDefaultShader;
-Shader *secretoryShader, *secretoryThickShader;
+Shader *secretoryInitialShader, *secretoryInitialThickShader, *secretoryDefaultShader, *secretoryDefaultThickShader;
 Shader *ciliaryShader, *ciliaryThickShader;
 
 // mouse controls
@@ -148,16 +148,6 @@ __global__ void output_EV_agent_to_VBO(xmachine_memory_EV_list* agents, glm::vec
 	vbo[index].z = agents->radius_um[index];
 }
 
-__device__ int copyVertexToVBO(glm::vec2* vbo, int index, float p1_x, float p1_y, float p2_x, float p2_y, float type) {
-	int index2 = index * 2;
-
-	vbo[index2].x = p1_x;
-	vbo[index2].y = p1_y;
-	vbo[index2 + 1].x = p2_x;
-	vbo[index2 + 1].y = p2_y;
-	return 0;
-}
-
 __global__ void output_SecretoryCell_agent_to_VBO(xmachine_memory_SecretoryCell_list* agents, float* vbo) {
 
 	//global thread index
@@ -173,7 +163,6 @@ __global__ void output_SecretoryCell_agent_to_VBO(xmachine_memory_SecretoryCell_
 	vbo[index2 + 5] = agents->p2_y[index];
 	vbo[index2 + 6] = 0; // agents->unit_normal_x[index];
 	vbo[index2 + 7] = 0; // agents->unit_normal_y[index];
-	//copyVertexToVBO(vbo, index, agents->p1_x[index], agents->p1_y[index], agents->p2_x[index], agents->p2_y[index], 1.0);
 }
 
 __global__ void output_CiliaryCell_agent_to_VBO(xmachine_memory_CiliaryCell_list* agents, float* vbo) {
@@ -226,8 +215,11 @@ void initVisualisation()
 	evInitialShader = new Shader("./shaders/ev_initial_vs.glsl", "./shaders/ev_spheres_fs.glsl", "./shaders/ev_spheres_gs.glsl");
 	evCollisionEvDefaultShader = new Shader("./shaders/ev_collision_vs.glsl", "./shaders/ev_spheres_fs.glsl", "./shaders/ev_spheres_gs.glsl");
 	
-	secretoryShader = new Shader("./shaders/cells_all_thin_vs.glsl", "./shaders/cells_secretory_fs.glsl");
-	secretoryThickShader = new Shader("./shaders/cells_all_thick_vs.glsl", "./shaders/cells_secretory_fs.glsl", "./shaders/cells_all_thick_gs.glsl");
+	secretoryInitialShader = new Shader("./shaders/cells_all_thin_vs.glsl", "./shaders/cells_secretory_initial_fs.glsl");
+	secretoryInitialThickShader = new Shader("./shaders/cells_all_thick_vs.glsl", "./shaders/cells_secretory_initial_fs.glsl", "./shaders/cells_all_thick_gs.glsl");
+	secretoryDefaultShader = new Shader("./shaders/cells_all_thin_vs.glsl", "./shaders/cells_secretory_default_fs.glsl");
+	secretoryDefaultThickShader = new Shader("./shaders/cells_all_thick_vs.glsl", "./shaders/cells_secretory_default_fs.glsl", "./shaders/cells_all_thick_gs.glsl");
+
 	ciliaryShader = new Shader("./shaders/cells_all_thin_vs.glsl", "./shaders/cells_ciliary_fs.glsl");
 	ciliaryThickShader = new Shader("./shaders/cells_all_thick_vs.glsl", "./shaders/cells_ciliary_fs.glsl", "./shaders/cells_all_thick_gs.glsl");
 	
@@ -280,30 +272,51 @@ void runVisualisation(){
 	}
 	model = glm::translate(model, glm::vec3(-center, 0));
 
-	
+	printf("Secretory cells: %d initial, %d default\n", get_agent_SecretoryCell_s_initial_count(), get_agent_SecretoryCell_s_default_count());
+	printf("Ciliary cells: %d default, \n", get_agent_CiliaryCell_c_default_count());
 
-	if (get_agent_SecretoryCell_s_default_count() > 0) {
+	if (get_agent_SecretoryCell_s_initial_count() > 0) {
 		size = get_agent_SecretoryCell_MAX_count() * 8 * sizeof(float);
-		createVBO(&vboIdSecretory, size);
-		gpuErrchk(cudaGraphicsGLRegisterBuffer(&CGRsecretory, vboIdSecretory, cudaGraphicsMapFlagsReadOnly));
-		checkGLError("createVBO - secretory");
+
+		createVBO(&vboIdSecretoryDefault, size);
+		gpuErrchk(cudaGraphicsGLRegisterBuffer(&CGRsecretoryDefault, vboIdSecretoryDefault, cudaGraphicsMapFlagsNone));
+		checkGLError("createVBO - secretoryDefault");
+		
+		createVBO(&vboIdSecretoryInitial, size);
+		gpuErrchk(cudaGraphicsGLRegisterBuffer(&CGRsecretoryInitial, vboIdSecretoryInitial, cudaGraphicsMapFlagsReadOnly));
+		checkGLError("createVBO - secretoryInitial");
 
 		float *secretory_dptr;
 		size_t size_secretory;
 		// map OpenGL buffer object for writing from CUDA
-		gpuErrchk(cudaGraphicsMapResources(1, &CGRsecretory, 0));
-		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&secretory_dptr, &size_secretory, CGRsecretory));
+		gpuErrchk(cudaGraphicsMapResources(1, &CGRsecretoryInitial, 0));
+		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&secretory_dptr, &size_secretory, CGRsecretoryInitial));
 
 		//cuda block size
-		tile_size = (int)ceil((float)get_agent_SecretoryCell_s_default_count() / threads_per_tile);
+		tile_size = (int)ceil((float)get_agent_SecretoryCell_s_initial_count() / threads_per_tile);
 		grid = dim3(tile_size, 1, 1);
 		threads = dim3(threads_per_tile, 1, 1);
 
-		output_SecretoryCell_agent_to_VBO << < grid, threads >> > (get_device_SecretoryCell_s_default_agents(), secretory_dptr);
+		output_SecretoryCell_agent_to_VBO << < grid, threads >> > (get_device_SecretoryCell_s_initial_agents(), secretory_dptr);
 		cudaDeviceSynchronize();
 		gpuErrchkLaunch();
 
-		gpuErrchk(cudaGraphicsUnmapResources(1, &CGRsecretory, 0));
+		gpuErrchk(cudaGraphicsUnmapResources(1, &CGRsecretoryInitial, 0));
+
+
+		gpuErrchk(cudaGraphicsMapResources(1, &CGRsecretoryDefault, 0));
+		gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)&secretory_dptr, &size_secretory, CGRsecretoryDefault));
+
+		//cuda block size
+		tile_size = (int)ceil((float)get_agent_SecretoryCell_s_initial_count() / threads_per_tile);
+		grid = dim3(tile_size, 1, 1);
+		threads = dim3(threads_per_tile, 1, 1);
+
+		output_SecretoryCell_agent_to_VBO << < grid, threads >> > (get_device_SecretoryCell_s_initial_agents(), secretory_dptr);
+		cudaDeviceSynchronize();
+		gpuErrchkLaunch();
+
+		gpuErrchk(cudaGraphicsUnmapResources(1, &CGRsecretoryDefault, 0));
 	}
 
 	if (get_agent_CiliaryCell_c_default_count() > 0) {
@@ -551,17 +564,39 @@ void display()
 	}
 	// Walls
 	if (display_walls) {
-		if (get_agent_SecretoryCell_s_default_count() > 0) {
+		if (get_agent_SecretoryCell_s_initial_count() > 0) {
 			if (thick_walls) {
-				secretoryThickShader->use();
-				secretoryThickShader->setMat4("mvp", mvp);
+				secretoryInitialThickShader->use();
+				secretoryInitialThickShader->setMat4("mvp", mvp);
 			}
 			else {
-				secretoryShader->use();
-				secretoryShader->setMat4("mvp", mvp);
+				secretoryInitialShader->use();
+				secretoryInitialShader->setMat4("mvp", mvp);
 			}
 
-			glBindBuffer(GL_ARRAY_BUFFER, vboIdSecretory);
+			glBindBuffer(GL_ARRAY_BUFFER, vboIdSecretoryInitial);
+			// position
+			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+			glEnableVertexAttribArray(0);
+			// unit normal
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+			glEnableVertexAttribArray(1);
+
+			glDrawArrays(GL_LINES, 0, 4 * get_agent_SecretoryCell_s_initial_count());
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+		}
+
+		if (get_agent_SecretoryCell_s_default_count() > 0) {
+			if (thick_walls) {
+				secretoryDefaultThickShader->use();
+				secretoryDefaultThickShader->setMat4("mvp", mvp);
+			}
+			else {
+				secretoryDefaultShader->use();
+				secretoryDefaultShader->setMat4("mvp", mvp);
+			}
+			// Secretory_s_default_cgr
+			glBindBuffer(GL_ARRAY_BUFFER, vboIdSecretoryDefault);
 			// position
 			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
 			glEnableVertexAttribArray(0);
@@ -572,6 +607,7 @@ void display()
 			glDrawArrays(GL_LINES, 0, 4 * get_agent_SecretoryCell_s_default_count());
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
+		
 
 		if (get_agent_CiliaryCell_c_default_count() > 0) {
 			if (thick_walls) {
@@ -713,7 +749,8 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 
 void close() {
 	deleteVBO(&sphereVerts);
-	deleteVBO(&vboIdSecretory);
+	deleteVBO(&vboIdSecretoryInitial);
+	deleteVBO(&vboIdSecretoryDefault);
 	deleteVBO(&vboIdCiliary);
 
 	cudaEventDestroy(start);
