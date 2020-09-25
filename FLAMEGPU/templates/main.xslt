@@ -88,9 +88,9 @@ int checkUsage(int argc, char** argv) {
 	}
 #else
 	printf("FLAMEGPU Console mode\n");
-	if(helpFlagFound || argc &lt; 3 || argc &gt; 5)
+	if(helpFlagFound || argc &lt; 3 || argc &gt; 7)
 	{
-		printf("\nusage: %s [-h] [--help] input_path num_iterations [cuda_device_id] [XML_output_override]\n", executable != nullptr ? executable : "main");
+		printf("\nusage: %s [-h] [--help] input_path num_iterations [cuda_device_id] [XML_output_override] [outputEveryXMLFrom] [outputEveryXMLUntil]\n", executable != nullptr ? executable : "main");
 		printf("\n");
 		printf("required arguments:\n");
 		printf("  input_path           Path to initial states XML file OR path to output XML directory\n");
@@ -263,7 +263,7 @@ int getOutputXMLFrequency(int argc, char**argv){
 	int outputFrequency = OUTPUT_TO_XML;
 	// If console mode is set and we have the right number of arguments, use the relevant index.
 	if (argc &gt;= 5){
-		outputFrequency = (int) atoi(argv[4]);
+	outputFrequency = (int) atoi(argv[4]);
 		if(outputFrequency &lt;= 0){
 			outputFrequency = 0;
 		}
@@ -272,6 +272,21 @@ int getOutputXMLFrequency(int argc, char**argv){
 #endif
 
 }
+ int getOutputEveryXMLFrom(int argc, char**argv){
+	int outputEveryXMLFrom = -1;
+	if (argc &gt;= 6){
+		outputEveryXMLFrom = (int) atoi(argv[5]);
+	}
+	return outputEveryXMLFrom;
+ }
+ 
+ int getOutputEveryXMLUntil(int argc, char**argv){
+	int outputEveryXMLUntil = -1;
+	if (argc &gt;= 7){
+		outputEveryXMLUntil = (int) atoi(argv[6]);
+	}
+	return outputEveryXMLUntil;
+ }
 
 void initCUDA(int argc, char** argv){
 	PROFILE_SCOPED_RANGE("initCUDA");
@@ -345,27 +360,36 @@ void runConsoleWithoutXMLOutput(int iterations){
 	}
 }
 
-void runConsoleWithXMLOutput(int iterations, int outputFrequency){
+void runConsoleWithXMLOutput(int iterations, int outputFrequency, 
+		int outputEveryXMLFrom, int outputEveryXMLUntil){
 	PROFILE_SCOPED_RANGE("runConsoleWithXMLOutput");
 	// Iteratively tun the correct number of iterations.
+	int lastIterationSaved = 0;
 	for (int i=0; i&lt; iterations || iterations == 0; i++)
 	{
-  if(i%1000==0)
-		printf("Processing Simulation Step %i\n", i+1);
+  		if(i%1000==0)
+			printf("Processing Simulation Step %i\n", i+1);
 		//single simulation iteration
 		singleIteration();
-		// Save the iteration data to disk
-		if((i+1) % outputFrequency == 0){
+		// Save the iteration data to disk if i matches outputFrequency
+		// or if i is within outputEveryXMLFrom and outputEveryXMLUntil
+		if((i+1) % outputFrequency == 0 || 
+				((i+1) &gt;= outputEveryXMLFrom &amp;&amp; (i+1) &lt;= outputEveryXMLUntil)){
 			saveIterationData(outputpath, i+1, <xsl:for-each select="gpu:xmodel/xmml:xagents/gpu:xagent/xmml:states/gpu:state">get_host_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_agents(), get_device_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_agents(), get_agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count()<xsl:choose><xsl:when test="position()=last()">);</xsl:when><xsl:otherwise>,</xsl:otherwise></xsl:choose></xsl:for-each>
 			printf("Iteration %i Saved to XML\n", i+1);
+			lastIterationSaved = i+1;
 		}
 		
-		if (get_exit_early()) break;
+		if (get_exit_early()) {
+			iterations = i+1;
+			break;
+		}
 	}
+	printf("Last iteration saved: %i, iterations: %i \n", lastIterationSaved, iterations);
 
 	// If we did not yet output the final iteration, output the final iteration.
-	if(iterations % outputFrequency != 0){
-		saveIterationData(outputpath, iterations, <xsl:for-each select="gpu:xmodel/xmml:xagents/gpu:xagent/xmml:states/gpu:state">get_host_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_agents(), get_device_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_agents(), get_agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count()<xsl:choose><xsl:when test="position()=last()">);</xsl:when><xsl:otherwise>,</xsl:otherwise></xsl:choose></xsl:for-each>
+	if(iterations % outputFrequency != 0 || lastIterationSaved != iterations){
+		saveIterationData(outputpath, iterations+1, <xsl:for-each select="gpu:xmodel/xmml:xagents/gpu:xagent/xmml:states/gpu:state">get_host_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_agents(), get_device_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_agents(), get_agent_<xsl:value-of select="../../xmml:name"/>_<xsl:value-of select="xmml:name"/>_count()<xsl:choose><xsl:when test="position()=last()">);</xsl:when><xsl:otherwise>,</xsl:otherwise></xsl:choose></xsl:for-each>
 		printf("Iteration %i Saved to XML\n", iterations);
 	}
 
@@ -386,6 +410,8 @@ int main( int argc, char** argv)
 
 	//determine frequency we want to output to xml.
 	int outputXMLFrequency = getOutputXMLFrequency(argc, argv);
+	int outputEveryXMLFrom = getOutputEveryXMLFrom(argc, argv);
+	int outputEveryXMLUntil = getOutputEveryXMLUntil(argc, argv);
 
 	//initialise CUDA
 	initCUDA(argc, argv);
@@ -424,7 +450,8 @@ int main( int argc, char** argv)
 
 	// Launch the main loop with / without xml output.
 	if(outputXMLFrequency &gt; 0){
-		runConsoleWithXMLOutput(iterations, outputXMLFrequency);
+		runConsoleWithXMLOutput(iterations, outputXMLFrequency, 
+			outputEveryXMLFrom, outputEveryXMLUntil);
 	} else {
 		runConsoleWithoutXMLOutput(iterations);	
 	}

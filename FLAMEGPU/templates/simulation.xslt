@@ -666,7 +666,8 @@ void initialise(char * inputfile){
 	gpuErrchk( cudaMalloc( (void**) &amp;d_rand48, h_rand48_SoA_size));
 	// calculate strided iteration constants
 	static const unsigned long long a = 0x5DEECE66DLL, c = 0xB;
-	int seed = 123;
+	srand (time(NULL));
+	int seed = rand();
 	unsigned long long A, C;
 	A = 1LL; C = 0LL;
 	for (unsigned int i = 0; i &lt; buffer_size_MAX; ++i) {
@@ -683,6 +684,14 @@ void initialise(char * inputfile){
 		x = a*x + c;
 		h_rand48->seeds[i].x = x &amp; 0xFFFFFFLL;
 		h_rand48->seeds[i].y = (x >> 24) &amp; 0xFFFFFFLL;
+		
+		/*
+		// Useful block of code for comparing the repeatability of the simulation due to RNG
+		printf("%f, ", (float) ((x &amp; 0xFFFFFFLL) &gt;&gt; 17 | ((x >> 24) &amp; 0xFFFFFFLL) &lt;&lt; 7) / 2147483647);
+		if(i%20==0){
+			printf("\n");
+		}
+		*/
 	}
 	//copy to device
 	gpuErrchk( cudaMemcpy( d_rand48, h_rand48, h_rand48_SoA_size, cudaMemcpyHostToDevice));

@@ -16,7 +16,7 @@
       <gpu:variable>
         <type>float</type>
         <name>const_Temperature_K</name>
-        <description>Temperature (Kelvins) (20-25C) + 237.15</description>
+        <description>Temperature (Kelvins) 20c = 293.15</description>
         <defaultValue>293.15f</defaultValue>
       </gpu:variable>
       <!-- const_Boltzmann_x_Temp_K -->
@@ -31,14 +31,17 @@
         <type>float</type>
         <name>const_water_dynamic_viscosity_pas</name>
         <description>
-          At 20C, source http://www.viscopedia.com/viscosity-tables/substances/water/
+          The dynamic (or absolute) viscosity of water @20C
+          Source http://www.viscopedia.com/viscosity-tables/substances/water/
           Value used to compute the diffusion coefficient of new EVs
-          In Pascal-seconds
+          In Pascal-seconds, equiv to 1.0005 mPa*s
+          Also, from:
+          https://www.engineeringtoolbox.com/viscosity-converter-d_413.html
+          Water at 68.4oF (20.2oC) has an absolute viscosity of one - 1 - centiPoise
         </description>
         <defaultValue>0.0010016f</defaultValue>
       </gpu:variable>
       <!-- const_water_kinematic_viscosity -->
-      
       <gpu:variable>
         <type>float</type>
         <name>const_water_kinematic_viscosity_kg_ums</name>
@@ -46,9 +49,25 @@
           A measure of inherent resistance to flow when no external force, except gravity, is acting on the fluid.
           Value at 20C, source http://www.viscopedia.com/viscosity-tables/substances/water/
           Used to compute the drag force acting on the EVs at collision time.
-          In Kg/um.s: 1003, In kg/m.s: 0.001003f
+          @20c = 1.0034 mm^2/s
+          0.00102 poise or 1.002 mPa.s
+
+          1 St = 100 cSt
+          1 cSt (centiStoke) = 10^-6 m^2/s = 1 mm^2/s
+          1 m^2/s = 106 centiStokes
+
+          It is calculated by dividing the dynamic viscosity by density
+          https://www.engineeringclicks.com/viscosity-of-water/
+
+          https://www.thermexcel.com/english/tables/eau_atm.htm
+
+          Density of water in 998.2 kg/m^3
+          Dynamic viscosity 0.001003 kg/m.s
+
+          The SI unit of ν is m2/s. The SI unit of ρ is kg/m^3. ρ-rho
+
         </description>
-        <defaultValue>1003</defaultValue>
+        <defaultValue>0.001003</defaultValue>
       </gpu:variable>
       <!-- const_6_pi_dynamic_viscosity -->
       <gpu:variable>
@@ -97,30 +116,86 @@
         <description>Boolean flag to determine at runtime if ev collisions could happen in the simulation</description>
         <defaultValue>1</defaultValue>
       </gpu:variable>
-      <!-- boundaries_enabled -->
+      <!-- boundaries -->
       <gpu:variable>
         <type>int</type>
-        <name>boundaries_enabled</name>
+        <name>boundaries</name>
         <description>Boolean flag</description>
         <defaultValue>1</defaultValue>
       </gpu:variable>
-      <!-- introduce_new_evs -->
+      <!-- drag -->
       <gpu:variable>
         <type>int</type>
-        <name>introduce_new_evs</name>
+        <name>drag</name>
+        <description>Boolean flag</description>
+        <defaultValue>1</defaultValue>
+      </gpu:variable>
+      <!-- brownian_motion_1d -->
+      <gpu:variable>
+        <type>int</type>
+        <name>brownian_motion_1d</name>
+        <description>Boolean flag</description>
         <defaultValue>0</defaultValue>
       </gpu:variable>
-      <!-- seconds_before_introducing_new_evs -->
+      <!-- brownian_motion_2d -->
+      <gpu:variable>
+        <type>int</type>
+        <name>brownian_motion_2d</name>
+        <description>Boolean flag</description>
+        <defaultValue>0</defaultValue>
+      </gpu:variable>
+      <!-- apoptosis -->
+      <gpu:variable>
+        <type>int</type>
+        <name>apoptosis</name>
+        <description>Boolean flag</description>
+        <defaultValue>1</defaultValue>
+      </gpu:variable>
       <gpu:variable>
         <type>float</type>
-        <name>seconds_before_introducing_new_evs</name>
+        <name>apoptosis_threshold</name>
+        <description>Probability of dying at any given second within N hours
+        1:0.00027, 2:0.000138888888889, 3:9.25925925926e-05, 4:6.94444444444e-05, 5:5.55555555556e-05
+        6:4.62962962963e-05, 8:3.472e-5, 10:2.77777777778e-05, 12:2.3148e-5,
+        18:1.54320987654e-05, 24: 1.15740740741e-05. Default: 4 hrs</description>
+        <defaultValue>6.94e-5</defaultValue>
+      </gpu:variable>
+      <gpu:variable>
+        <type>float</type>
+        <name>apoptosis_frequency</name>
+        <defaultValue>1.0</defaultValue>
+      </gpu:variable>
+
+      <!-- ev_secretion -->
+      <gpu:variable>
+        <type>int</type>
+        <name>ev_secretion</name>
+        <defaultValue>1</defaultValue>
+      </gpu:variable>
+      <!-- ev_secretion_interval -->
+      <gpu:variable>
+        <type>float</type>
+        <name>ev_secretion_interval</name>
+        <description>Secretion will occur between [nSec,2nSec]</description>
         <defaultValue>30.0f</defaultValue>
       </gpu:variable>
-      <!-- new_evs_threshold -->
+      <!-- ev_secretion_threshold -->
       <gpu:variable>
         <type>float</type>
-        <name>new_evs_threshold</name>
+        <name>ev_secretion_threshold</name>
         <defaultValue>0.95f</defaultValue>
+      </gpu:variable>
+      <gpu:variable>
+        <type>int</type>
+        <name>min_ev_radius</name>
+        <description>Smallest EV radius possible in the system</description>
+        <defaultValue>40</defaultValue>
+      </gpu:variable>
+      <gpu:variable>
+        <type>int</type>
+        <name>max_ev_radius</name>
+        <description>Largest EV radius possible in the system (must subtract the min_ev_radius value)</description>
+        <defaultValue>120</defaultValue>
       </gpu:variable>
       
       <!-- dt - timestep of the model -->
@@ -135,27 +210,14 @@
         <type>int</type>
         <name>dof</name>
         <description>Degrees of Freedom in the model</description>
-        <defaultValue>1</defaultValue>
-      </gpu:variable>
-      <!-- seconds_in_initial_state -->
-      <gpu:variable>
-        <type>int</type>
-        <name>seconds_in_initial_state</name>
-        <description>EVs in initial state do not collide and follow ballistic movement</description>
-        <defaultValue>2.0f</defaultValue>
+        <defaultValue>2</defaultValue>
       </gpu:variable>
       <gpu:variable>
-        <type>int</type>
-        <name>min_ev_radius</name>
-        <description>Smallest EV radius possible in the system</description>
-        <defaultValue>40</defaultValue>
+        <type>unsigned int</type>
+        <name>iteration</name>
+        <defaultValue>0</defaultValue>
       </gpu:variable>
-      <gpu:variable>
-        <type>int</type>
-        <name>max_ev_radius</name>
-        <description>Largest EV radius possible in the system (must subtract the min_ev_radius value)</description>
-        <defaultValue>120</defaultValue>
-      </gpu:variable>
+      
     </gpu:constants>
     
     <gpu:functionFiles>
@@ -167,6 +229,11 @@
         <gpu:name>precompute_values</gpu:name>
       </gpu:initFunction>
     </gpu:initFunctions>
+    <gpu:stepFunctions>
+      <gpu:stepFunction>
+        <gpu:name>increase_iteration</gpu:name>
+      </gpu:stepFunction>
+    </gpu:stepFunctions>
     
   </gpu:environment>
 
@@ -176,7 +243,7 @@
       <name>SecretoryCell</name>
       <memory>
         <gpu:variable>
-          <type>unsigned int</type>
+          <type>int</type>
           <name>id</name>
         </gpu:variable>
         <gpu:variable>
@@ -249,12 +316,16 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>time_since_last_secreted</name>
+          <name>time_to_next_secretion_attempt</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>probability_of_secretion</name>
         </gpu:variable>
         <gpu:variable>
           <type>int</type>
           <name>source_points</name>
-          <defaultValue>0</defaultValue>
+          <defaultValue>11</defaultValue>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -265,6 +336,16 @@
           <type>float</type>
           <name>source_points_ys</name>
           <arrayLength>11</arrayLength>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>last_source_point_secreting</name>
+          <defaultValue>-1</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>last_ev_id</name>
+          <defaultValue>0</defaultValue>
         </gpu:variable>
       </memory>
       <functions>
@@ -296,6 +377,17 @@
               <state>initial</state>
             </gpu:xagentOutput>
           </xagentOutputs>
+          <gpu:globalCondition>
+            <lhs>
+              <value>ev_secretion</value>
+            </lhs>
+            <operator>&gt;</operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>true</gpu:RNG>
         </gpu:function>
@@ -418,7 +510,7 @@
       <name>EV</name>
       <memory>
         <gpu:variable>
-          <type>int</type>
+          <type>unsigned int</type>
           <name>id</name>
         </gpu:variable>
         <gpu:variable>
@@ -451,7 +543,6 @@
           <name>vy</name>
           <description>The component on Y of velocity_um</description>
         </gpu:variable>
-
         <gpu:variable>
           <type>float</type>
           <name>bm_vx</name>
@@ -466,36 +557,12 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>bm_impulse_t_left</name>
-          <description></description>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        
-        <gpu:variable>
-          <type>float</type>
-          <name>mass_kg</name>
-          <description>Mass of the vesicle in KG</description>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
           <name>mass_ag</name>
           <description>Mass of the vesicle in attograms</description>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>colour</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
           <name>radius_um</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>radius_m</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>diffusion_rate_m</name>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -506,9 +573,9 @@
           <name>diff_rate_um_x_twice_dof</name>
         </gpu:variable>
         <gpu:variable>
-          <type>int</type>
+          <type>unsigned int</type>
           <name>closest_ev_id</name>
-          <defaultValue>-1</defaultValue>
+          <defaultValue>0</defaultValue>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -536,47 +603,95 @@
           <defaultValue>100</defaultValue>
         </gpu:variable>
         <gpu:variable>
+          <type>unsigned int</type>
+          <name>last_ev_collision</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>last_cell_collision</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
           <type>float</type>
           <name>age</name>
           <defaultValue>0</defaultValue>
         </gpu:variable>
-        
+        <gpu:variable>
+          <type>float</type>
+          <name>apoptosis_timer</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>time_in_initial_state</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
         <gpu:variable>
           <type>float</type>
           <name>velocity_ums</name>
           <description>Velocity in um/s - mean diffusion distance obtained from MSD</description>
         </gpu:variable>
+
         <gpu:variable>
           <type>float</type>
-          <name>velocity_ms</name>
-          <description>Velocity in um/s - mean diffusion distance obtained from MSD</description>
+          <name>debugNanInfVelocity</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>debugNanInfLocation</name>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>debugDiv0</name>
+          <description>Identifies the function where a Div0 occured</description>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>debugNanInfValue</name>
+          <description>Identifies the function where a NaN or Inf occured</description>
+          <defaultValue>0</defaultValue>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>debugDragVel0At</name>
+          <defaultValue>-1</defaultValue>
+        </gpu:variable>
+        
+        <gpu:variable>
+          <type>float</type>
+          <name>debugNonFiniteBmAt</name>
+          <defaultValue>-1</defaultValue>
         </gpu:variable>
       </memory>
       <functions>
-        <!-- output_data -->
+        <!-- output_location_ev_default -->
         <gpu:function>
-          <name>output_data</name>
+          <name>output_location_ev_default</name>
           <description>Adds the EV's current position to the "location" message list, for collision detection purposes.</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <outputs>
             <gpu:output>
-              <messageName>location</messageName>
+              <messageName>location_ev_default</messageName>
               <gpu:type>single_message</gpu:type>
             </gpu:output>
           </outputs>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
-        <!-- output_data_initial -->
+        <!-- output_location_ev_initial -->
         <gpu:function>
-          <name>output_data_initial</name>
+          <name>output_location_ev_initial</name>
           <description>Adds the EV's current position to the "location" message list, for collision detection purposes.</description>
           <currentState>initial</currentState>
           <nextState>initial</nextState>
           <outputs>
             <gpu:output>
-              <messageName>location</messageName>
+              <messageName>location_ev_initial</messageName>
               <gpu:type>single_message</gpu:type>
             </gpu:output>
           </outputs>
@@ -587,7 +702,8 @@
         <!-- test secretory cell collision -->
         <gpu:function>
           <name>test_secretory_cell_collision</name>
-          <description>Checks for possible collisions with secretory boundaries. Outputs an optional collision_message. EVs colliding with a cell contain the parameter "closest_cell_id" > -1 and have a value on "closest_cell_distance"</description>
+          <description>Checks for possible collisions with secretory boundaries. Outputs an optional collision_message.
+          EVs colliding with a cell contain the parameter "closest_cell_id" > -1 and have a value on "closest_cell_distance"</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
@@ -603,7 +719,7 @@
           </outputs>
           <gpu:globalCondition>
             <lhs>
-              <value>boundaries_enabled</value>
+              <value>boundaries</value>
             </lhs>
             <operator>&gt;</operator>
             <rhs>
@@ -619,7 +735,9 @@
         <!-- secretory cell collision resolution -->
         <gpu:function>
           <name>secretory_cell_collision_resolution</name>
-          <description>Corrects the position of an EV as a result of colliding with a cell. This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp; (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
+          <description>Corrects the position of an EV as a result of colliding with a cell.
+          This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp;
+          (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
@@ -662,7 +780,7 @@
                           <lhs>
                             <agentVariable>closest_ciliary_cell_distance</agentVariable>
                           </lhs>
-                          <operator>&gt;</operator>
+                          <operator>&gt;=</operator>
                           <rhs>
                             <agentVariable>closest_secretory_cell_distance</agentVariable>
                           </rhs>
@@ -681,7 +799,8 @@
         <!-- test ciliary cell collision -->
         <gpu:function>
           <name>test_ciliary_cell_collision</name>
-          <description>Checks for possible collisions with ciliary boundaries. Outputs an optional collision_message. EVs colliding with a cell contain the parameter "closest_cell_id" > -1 and have a value on "closest_cell_distance"</description>
+          <description>Checks for possible collisions with ciliary boundaries. Outputs an optional collision_message.
+          EVs colliding with a cell contain the parameter "closest_cell_id" > -1 and have a value on "closest_cell_distance"</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
@@ -698,7 +817,7 @@
 
           <gpu:globalCondition>
             <lhs>
-              <value>boundaries_enabled</value>
+              <value>boundaries</value>
             </lhs>
             <operator>&gt;</operator>
             <rhs>
@@ -714,7 +833,9 @@
         <!-- ciliary_cell collision resolution -->
         <gpu:function>
           <name>ciliary_cell_collision_resolution</name>
-          <description>Corrects the position of an EV as a result of colliding with a ciliary cell. This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp; (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
+          <description>Corrects the position of an EV as a result of colliding with a ciliary cell.
+          This function only applies to EVs with variable "closest_cell_id" &gt; -1 &amp;
+          (closest_ev_id == -1 || closest_cell_distance &lt; closest_ev_distance)</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
@@ -781,16 +902,16 @@
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
-        
-        <!-- test ev collision -->
+        <!-- test_collision_ev_default_ev_initial -->
         <gpu:function>
-          <name>test_ev_collision</name>
-          <description>Checks for possible collisions with other EVs. Outputs an optional collision_message. EVs colliding with another EV contain the parameter "closest_ev_id" > -1 and have a value on "closest_ev_distance"</description>
+          <name>test_collision_ev_default_ev_initial</name>
+          <description>Checks for possible collisions with other EVs. Outputs an optional collision_message.
+          EVs colliding with another EV contain the parameter "closest_ev_id" > -1 and have a value on "closest_ev_distance"</description>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <inputs>
             <gpu:input>
-              <messageName>location</messageName>
+              <messageName>location_ev_initial</messageName>
             </gpu:input>
           </inputs>
           <gpu:globalCondition>
@@ -806,76 +927,87 @@
           </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
-        </gpu:function>        
+        </gpu:function>
+        <gpu:function>
+          <name>test_collision_ev_initial_ev_default</name>
+          <description>Checks for possible collisions with other EVs. EVs in initial state colliding
+          with another EV conserve the same position from the previous iteration</description>
+          <currentState>initial</currentState>
+          <nextState>initial</nextState>
+          <inputs>
+            <gpu:input>
+              <messageName>location_ev_default</messageName>
+            </gpu:input>
+          </inputs>
+          <gpu:globalCondition>
+            <lhs>
+              <value>ev_collisions</value>
+            </lhs>
+            <operator>&gt;</operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+        <!-- test_collision_ev_default_ev_default -->
+        <gpu:function>
+          <name>test_collision_ev_default_ev_default</name>
+          <description>Checks for possible collisions with other EVs. Outputs an optional collision_message.
+          EVs colliding with another EV contain the parameter "closest_ev_id" > -1 and have a value on "closest_ev_distance"</description>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <inputs>
+            <gpu:input>
+              <messageName>location_ev_default</messageName>
+            </gpu:input>
+          </inputs>
+          <gpu:globalCondition>
+            <lhs>
+              <value>ev_collisions</value>
+            </lhs>
+            <operator>&gt;</operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
         <!-- brownian movement affecting the agent -->
-        <!-- 1D -->
+        <!-- 1D 
         <gpu:function>
           <name>brownian_movement_1d</name>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <gpu:globalCondition>
             <lhs>
-              <value>dof</value>
+              <value>brownian_motion_1d</value>
             </lhs>
-            <operator>==</operator>
+            <operator>&gt;</operator>
             <rhs>
-              <value>1</value>
+              <value>0</value>
             </rhs>
             <gpu:maxItterations>1000000000</gpu:maxItterations>
             <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
           </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>true</gpu:RNG>
-        </gpu:function>
+        </gpu:function>-->
         <!-- 2D -->
         <gpu:function>
-          <name>brownian_movement_2d_v1</name>
+          <name>brownian_movement_2d</name>
           <currentState>default</currentState>
           <nextState>default</nextState>
           <gpu:globalCondition>
-            <lhs>
-              <value>dof</value>
-            </lhs>
-            <operator>==</operator>
-            <rhs>
-              <value>2</value>
-            </rhs>
-            <gpu:maxItterations>1000000000</gpu:maxItterations>
-            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
-          </gpu:globalCondition>
-          <gpu:reallocate>false</gpu:reallocate>
-          <gpu:RNG>true</gpu:RNG>
-        </gpu:function>
-        <gpu:function>
-          <name>brownian_movement_2d_v2</name>
-          <currentState>default</currentState>
-          <nextState>default</nextState>
-          <gpu:globalCondition>
-            <lhs>
-              <value>dof</value>
-            </lhs>
-            <operator>==</operator>
-            <rhs>
-              <value>2</value>
-            </rhs>
-            <gpu:maxItterations>1000000000</gpu:maxItterations>
-            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
-          </gpu:globalCondition>
-          <gpu:reallocate>false</gpu:reallocate>
-          <gpu:RNG>true</gpu:RNG>
-        </gpu:function>
-        <gpu:function>
-          <name>brownian_movement_2d_v3</name>
-          <currentState>default</currentState>
-          <nextState>default</nextState>
-          <gpu:globalCondition>
-            <lhs>
-              <value>dof</value>
-            </lhs>
-            <operator>==</operator>
-            <rhs>
-              <value>2</value>
-            </rhs>
+            <lhs><value>brownian_motion_2d</value></lhs>
+            <operator>&gt;</operator>
+            <rhs><value>0</value></rhs>
             <gpu:maxItterations>1000000000</gpu:maxItterations>
             <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
           </gpu:globalCondition>
@@ -890,6 +1022,12 @@
           <nextState>default</nextState>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
+        <gpu:function>
+          <name>reset_state_initial</name>
+          <currentState>initial</currentState>
+          <nextState>initial</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
         <!-- initial to default -->
         <gpu:function>
           <name>initial_to_default</name>
@@ -901,23 +1039,124 @@
             </lhs>
             <operator>&gt;</operator>
             <rhs>
-              <value>seconds_in_initial_state</value></rhs>
+              <agentVariable>time_in_initial_state</agentVariable>
+            </rhs>
           </condition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
         
+        <!-- move_bm -->
+        <gpu:function>
+          <name>move_bm</name>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <gpu:globalCondition>
+            <lhs><value>brownian_motion_2d</value></lhs>
+            <operator>&gt;</operator>
+            <rhs><value>0</value></rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
         <!-- move -->
         <gpu:function>
           <name>move</name>
           <currentState>default</currentState>
           <nextState>default</nextState>
+          <gpu:globalCondition>
+            <lhs><value>brownian_motion_2d</value></lhs>
+            <operator>&lt;</operator>
+            <rhs><value>1</value></rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
           <gpu:reallocate>false</gpu:reallocate>
         </gpu:function>
+        <!-- move_initial -->
         <gpu:function>
           <name>moveInitial</name>
           <currentState>initial</currentState>
           <nextState>initial</nextState>
           <gpu:reallocate>false</gpu:reallocate>
+        </gpu:function>
+        <!-- drag_force -->
+        <gpu:function>
+          <name>drag_force</name>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <gpu:globalCondition>
+            <lhs>
+              <condition><lhs><value>drag</value></lhs><operator>&gt;</operator><rhs><value>0</value></rhs></condition>
+            </lhs>
+            <operator>&amp;&amp;</operator>
+            <rhs>
+              <condition><lhs><value>brownian_motion_2d</value></lhs><operator>&lt;</operator><rhs><value>1</value></rhs></condition>
+            </rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          <gpu:reallocate>false</gpu:reallocate>
+	        <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+        <!-- drag_force_bm -->
+        <gpu:function>
+          <name>drag_force_bm</name>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <gpu:globalCondition>
+            <lhs>
+              <condition><lhs><value>drag</value></lhs><operator>&gt;</operator><rhs><value>0</value></rhs></condition>
+            </lhs>
+            <operator>&amp;&amp;</operator>
+            <rhs>
+              <condition><lhs><value>brownian_motion_2d</value></lhs><operator>&gt;</operator><rhs><value>0</value></rhs></condition>
+            </rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          <gpu:reallocate>false</gpu:reallocate>
+	        <gpu:RNG>false</gpu:RNG>
+        </gpu:function>
+        <!-- ev_default_apoptosis -->
+        <gpu:function>
+          <name>ev_default_apoptosis</name>
+          <currentState>default</currentState>
+          <nextState>default</nextState>
+          <gpu:globalCondition>
+            <lhs>
+              <value>apoptosis</value>
+            </lhs>
+            <operator>&gt;</operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          <gpu:reallocate>true</gpu:reallocate>
+	        <gpu:RNG>true</gpu:RNG>
+        </gpu:function>
+        <!-- ev_initial_apoptosis -->
+        <gpu:function>
+          <name>ev_initial_apoptosis</name>
+          <currentState>initial</currentState>
+          <nextState>initial</nextState>
+          <!--
+          <gpu:globalCondition>
+            <lhs>
+              <value>apoptosis</value>
+            </lhs>
+            <operator>&gt;</operator>
+            <rhs>
+              <value>0</value>
+            </rhs>
+            <gpu:maxItterations>1000000000</gpu:maxItterations>
+            <gpu:mustEvaluateTo>true</gpu:mustEvaluateTo>
+          </gpu:globalCondition>
+          -->
+          <gpu:reallocate>true</gpu:reallocate>
+	        <gpu:RNG>false</gpu:RNG>
         </gpu:function>
       </functions>
       
@@ -935,18 +1174,18 @@
       </states>
       <gpu:type>continuous</gpu:type>
       <!-- 2^17=131072, 2^16=65536, 1^15=32768, 2^14=16384, 2^13=8192 2^12= 4095, 2^11=2048
-      2^18=262144, 2^19=524288, 2^20=1048576, -->
-      <gpu:bufferSize>524288</gpu:bufferSize>
+      2^18=262144, 2^19=524288, 2^20=1048576, 2^21=2,097,152 2^22=4,192,304 -->
+      <gpu:bufferSize>4192304</gpu:bufferSize>
     </gpu:xagent>
   </xagents>
   
   <messages>
-    <!-- location (ev position) -->
+    <!-- location_ev_default -->
     <gpu:message>
-      <name>location</name>
+      <name>location_ev_default</name>
       <variables>
         <gpu:variable>
-          <type>int</type>
+          <type>unsigned int</type>
           <name>id</name>
         </gpu:variable>
         <gpu:variable>
@@ -967,7 +1206,52 @@
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
-          <name>mass_kg</name>
+          <name>mass_ag</name>
+          <description>Mass of the vesicle in attograms</description>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>vx</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>vy</name>
+        </gpu:variable>
+      </variables>
+      <gpu:partitioningSpatial>
+        <gpu:radius>2</gpu:radius>
+        <gpu:xmin>0</gpu:xmin>
+        <gpu:xmax>3000</gpu:xmax>
+        <gpu:ymin>0</gpu:ymin>
+        <gpu:ymax>4000</gpu:ymax>
+        <gpu:zmin>0</gpu:zmin>
+        <gpu:zmax>2</gpu:zmax>
+      </gpu:partitioningSpatial>
+      <gpu:bufferSize>4192304</gpu:bufferSize>
+    </gpu:message>
+    <!-- location_ev_initial -->
+    <gpu:message>
+      <name>location_ev_initial</name>
+      <variables>
+        <gpu:variable>
+          <type>unsigned int</type>
+          <name>id</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>z</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>radius_um</name>
         </gpu:variable>
         <gpu:variable>
           <type>float</type>
@@ -1176,84 +1460,25 @@
       <gpu:bufferSize>131072</gpu:bufferSize>
     </gpu:message>
     
-    <!-- ev collision message -->
-    <!--<gpu:message>
-      <name>ev_collision</name>
-      <variables>
-        <gpu:variable>
-          <type>int</type>
-          <name>ev1_id</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>int</type>
-          <name>ev2_id</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>distance</name>
-        </gpu:variable>
-        
-        <gpu:variable>
-          <type>float</type>
-          <name>ev1_mass</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev1_r_um</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev1_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev1_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev1_vx</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev1_vy</name>
-        </gpu:variable>
-
-        <gpu:variable>
-          <type>float</type>
-          <name>ev2_mass</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev2_r_um</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev2_x</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev2_y</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev2_vx</name>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>ev2_vy</name>
-        </gpu:variable>
-        
-      </variables>
-      <gpu:partitioningNone/>
-      <gpu:bufferSize>1048576</gpu:bufferSize>
-    </gpu:message>-->
     <!-- ciliary_cell collision message -->
     <gpu:message>
       <name>ciliary_cell_collision</name>
       <variables>
         <gpu:variable>
-          <type>int</type>
+          <type>unsigned int</type>
           <name>ev_id</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>z</name>
         </gpu:variable>
         <gpu:variable>
           <type>int</type>
@@ -1263,7 +1488,6 @@
           <type>float</type>
           <name>distance</name>
         </gpu:variable>
-        
         <gpu:variable>
           <type>float</type>
           <name>p1_x</name>
@@ -1280,7 +1504,6 @@
           <type>float</type>
           <name>p2_y</name>
         </gpu:variable>
-        
         <gpu:variable>
           <type>float</type>
           <name>cell_direction_x</name>
@@ -1323,16 +1546,36 @@
           <name>normal_length</name>
         </gpu:variable>
       </variables>
-      <gpu:partitioningNone/>
-      <gpu:bufferSize>524288</gpu:bufferSize>
+      <gpu:partitioningSpatial>
+        <gpu:radius>1</gpu:radius>
+        <gpu:xmin>0</gpu:xmin>
+        <gpu:xmax>3000</gpu:xmax>
+        <gpu:ymin>0</gpu:ymin>
+        <gpu:ymax>4000</gpu:ymax>
+        <gpu:zmin>0</gpu:zmin>
+        <gpu:zmax>1</gpu:zmax>
+      </gpu:partitioningSpatial>
+      <gpu:bufferSize>2097152</gpu:bufferSize>
     </gpu:message>
     <!-- secretory cell collision message -->
     <gpu:message>
       <name>secretory_cell_collision</name>
       <variables>
         <gpu:variable>
-          <type>int</type>
+          <type>unsigned int</type>
           <name>ev_id</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>x</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>y</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>float</type>
+          <name>z</name>
         </gpu:variable>
         <gpu:variable>
           <type>int</type>
@@ -1358,7 +1601,6 @@
           <type>float</type>
           <name>p2_y</name>
         </gpu:variable>
-        
         <gpu:variable>
           <type>float</type>
           <name>cell_direction_x</name>
@@ -1399,18 +1641,36 @@
           <type>float</type>
           <name>normal_length</name>
         </gpu:variable>
-        <!-- for cells ends -->
       </variables>
-      <gpu:partitioningNone/>
-      <gpu:bufferSize>524288</gpu:bufferSize>
+      <gpu:partitioningSpatial>
+        <gpu:radius>1</gpu:radius>
+        <gpu:xmin>0</gpu:xmin>
+        <gpu:xmax>3000</gpu:xmax>
+        <gpu:ymin>0</gpu:ymin>
+        <gpu:ymax>4000</gpu:ymax>
+        <gpu:zmin>0</gpu:zmin>
+        <gpu:zmax>1</gpu:zmax>
+      </gpu:partitioningSpatial>
+      <gpu:bufferSize>2097152</gpu:bufferSize>
     </gpu:message>
   </messages>
   
   <layers>
+    <layer>
+      <gpu:layerFunction>
+        <name>ev_default_apoptosis</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>ev_initial_apoptosis</name>
+      </gpu:layerFunction>
+    </layer>
     <!-- Vesicles involved in a collision, reset state -->
     <layer>
       <gpu:layerFunction>
         <name>reset_state</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>reset_state_initial</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
         <name>initial_to_default</name>
@@ -1419,21 +1679,21 @@
     
     <!-- Compute the velocity of the particle for this step -->
     <layer>
-      <!-- due to the effects of brownian motion -->
       <gpu:layerFunction>
-        <name>brownian_movement_1d</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <name>brownian_movement_2d_v3</name>
-      </gpu:layerFunction>
-      <!-- New EVs secretion/generation -->
-      <gpu:layerFunction>
-        <name>secrete_ev</name>
+        <name>brownian_movement_2d</name> <!-- ID 1000 -->
       </gpu:layerFunction>
     </layer>
-    <!-- Integrate the forces and compute the potential new position -->
     <layer>
-      <gpu:layerFunction><name>move</name></gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>drag_force</name> <!-- ID 1300 -->
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>drag_force_bm</name> <!-- ID 1600 -->
+      </gpu:layerFunction>
+    </layer>
+    <layer>
+      <gpu:layerFunction><name>move</name></gpu:layerFunction> <!-- ID 2000 -->
+      <gpu:layerFunction><name>move_bm</name></gpu:layerFunction>
       <gpu:layerFunction><name>moveInitial</name></gpu:layerFunction>
     </layer>
 
@@ -1463,27 +1723,46 @@
     <!-- Solve collisions with boundaries (secretory or ciliary cells) -->
     <layer>
       <gpu:layerFunction><name>secretory_cell_collision_resolution</name></gpu:layerFunction>
-    </layer>
+    </layer> <!-- ID 3000 -->
     
     <layer>      
       <gpu:layerFunction><name>ciliary_cell_collision_resolution</name></gpu:layerFunction>
-    </layer>
+    </layer> <!-- ID 4000 -->
 
-
-    <!-- Output current EVs position -->
+    <!-- New EVs secretion/generation -->
     <layer>
       <gpu:layerFunction>
-        <name>output_data</name>
-      </gpu:layerFunction>
-      <gpu:layerFunction>
-        <name>output_data_initial</name>
+        <name>secrete_ev</name>
       </gpu:layerFunction>
     </layer>
 
-    <!-- Check for inter-EV collisions (and solve them) -->
+    <!-- Collisions between default and initial evs (and solve them) -->
     <layer>
       <gpu:layerFunction>
-        <name>test_ev_collision</name>
+        <name>output_location_ev_default</name>
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>output_location_ev_initial</name>
+      </gpu:layerFunction>
+    </layer>
+    <layer>
+      <gpu:layerFunction>
+        <name>test_collision_ev_default_ev_initial</name> <!-- ID 5000 -->
+      </gpu:layerFunction>
+      <gpu:layerFunction>
+        <name>test_collision_ev_initial_ev_default</name> <!-- ID 5500 -->
+      </gpu:layerFunction>
+    </layer>
+  
+    <!-- Collisions between default evs (and solve them) -->
+    <layer>
+      <gpu:layerFunction>
+        <name>output_location_ev_default</name>
+      </gpu:layerFunction>
+    </layer>
+    <layer>
+      <gpu:layerFunction>
+        <name>test_collision_ev_default_ev_default</name> <!-- ID 6000 -->
       </gpu:layerFunction>
     </layer>
     

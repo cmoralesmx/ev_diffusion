@@ -20,6 +20,8 @@
 #define GLM_FORCE_PURE
 #include &lt;glm/glm.hpp&gt;
 
+extern int exiting_early;
+
 /* General standard definitions */
 //Threads per block (agents per block)
 #define THREADS_PER_TILE 64
