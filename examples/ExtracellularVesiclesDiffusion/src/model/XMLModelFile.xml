@@ -206,9 +206,14 @@
         <type>int</type>
         <name>max_ev_radius</name>
         <description>Largest EV radius possible in the system (must subtract the min_ev_radius value)</description>
-        <defaultValue>120</defaultValue>
+        <defaultValue>500</defaultValue>
       </gpu:variable>
-      
+      <gpu:variable>
+        <type>int</type>
+        <name>threshold_ex_mv</name>
+        <description>Threshold between exosome and microvesicle size. Becomes the upper limit for exosomes, lower limit for MV</description>
+        <defaultValue>100</defaultValue>
+      </gpu:variable>
       <!-- dt - timestep of the model -->
       <gpu:variable>
         <type>float</type>
@@ -362,6 +367,14 @@
           <name>last_ev_id</name>
           <defaultValue>0</defaultValue>
         </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>min_ev_radius</name>
+        </gpu:variable>
+        <gpu:variable>
+          <type>int</type>
+          <name>max_ev_radius</name>
+        </gpu:variable>
       </memory>
       <functions>
         <!-- output_secretory_cell_location -->
@@ -379,7 +392,14 @@
           <gpu:reallocate>false</gpu:reallocate>
           <gpu:RNG>false</gpu:RNG>
         </gpu:function>
-        
+        <gpu:function>
+          <name>secretory_cell_initialization</name>
+          <description>Decides the ev size range to produce</description>
+          <currentState>s_initial</currentState>
+          <nextState>s_default</nextState>
+          <gpu:reallocate>false</gpu:reallocate>
+          <gpu:RNG>true</gpu:RNG>
+        </gpu:function>
         <!-- add new EVs -->
         <gpu:function>
           <name>secrete_ev</name>
@@ -409,9 +429,12 @@
       </functions>
       <states>
         <gpu:state>
+          <name>s_initial</name>
+        </gpu:state>
+        <gpu:state>
           <name>s_default</name>
         </gpu:state>
-        <initialState>s_default</initialState>
+        <initialState>s_initial</initialState>
       </states>
       <gpu:type>continuous</gpu:type>
       <gpu:bufferSize>131072</gpu:bufferSize>
@@ -635,17 +658,6 @@
           <defaultValue>100</defaultValue>
         </gpu:variable>
         <gpu:variable>
-          <type>unsigned int</type>
-          <name>closest_ev_bounced_id</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>closest_ev_bounced_distance</name>
-          <defaultValue>100</defaultValue>
-        </gpu:variable>
-
-        <gpu:variable>
           <type>int</type>
           <name>closest_secretory_cell_id</name>
           <defaultValue>-1</defaultValue>
@@ -688,12 +700,6 @@
         <gpu:variable>
           <type>float</type>
           <name>time_in_initial_state</name>
-          <defaultValue>0</defaultValue>
-        </gpu:variable>
-        <gpu:variable>
-          <type>float</type>
-          <name>origTimeInInitial</name>
-          <description>DEPRECATED - holds the original time_in_initial</description>
           <defaultValue>0</defaultValue>
         </gpu:variable>
         <gpu:variable>
@@ -1698,6 +1704,12 @@
   <layers>
     <layer>
       <gpu:layerFunction>
+        <name>secretory_cell_initialization</name>
+      </gpu:layerFunction>
+    </layer>
+
+    <layer>
+      <gpu:layerFunction>
         <name>ev_default_apoptosis</name>
       </gpu:layerFunction>
       <gpu:layerFunction>
@@ -1726,7 +1738,6 @@
       <gpu:layerFunction><name>moveDefault</name></gpu:layerFunction> <!-- ID 2000 -->
       <gpu:layerFunction><name>moveInitial</name></gpu:layerFunction>
     </layer>
-
     <!-- Output message to communicate the boundaries positions (ciliary cells, secretory cells) -->
     <layer>
       <gpu:layerFunction>
@@ -1742,7 +1753,6 @@
         <name>output_location_ev_initial</name>
       </gpu:layerFunction>
     </layer>
-    
     <!-- Check for collisions -->
     <layer>
       <gpu:layerFunction>
@@ -1789,7 +1799,6 @@
         <name>collision_ciliary_cell</name>
       </gpu:layerFunction>
     </layer>
-
     <!--
       Collision resolution functions apply to the closest collision detected.
       The location messages should be re used here.
