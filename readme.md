@@ -1,3 +1,5 @@
+**NOTE:** This repository is now archived, therefore, it is READ ONLY. Development continues at [FLAME_GPU](https://github.com/cmoralesmx/FLAMEGPU)
+
 # FLAME GPU
 
 http://www.flamegpu.com
